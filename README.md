@@ -24,6 +24,7 @@
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
@@ -58,6 +59,7 @@ python -m chitchat.main
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
@@ -88,6 +90,7 @@ See [BUILD_GUIDE.md](BUILD_GUIDE.md) for the full installation guide.
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
@@ -116,6 +119,7 @@ python -m chitchat.main
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```

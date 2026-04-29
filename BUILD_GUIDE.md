@@ -100,7 +100,13 @@ source .venv/bin/activate
 ### 3.3 의존성 설치
 
 ```bash
+# pip를 항상 최신으로 유지
 python -m pip install --upgrade pip
+
+# requirements.txt 기반 의존성 설치
+pip install -r requirements.txt
+
+# 현재 프로젝트 모듈(chitchat) 설치
 pip install -e ".[dev]"
 ```
 
@@ -303,20 +309,37 @@ alembic downgrade -1
 
 ---
 
-## 10. 패키징
+## 10. 패키징 (멀티 플랫폼)
 
-### 10.1 PyInstaller 빌드
+`scripts/build.py` 스크립트를 사용하여 안전하고 쉽게 빌드할 수 있다.
+
+### 10.1 빌드 실행 (CLI 모드)
 
 ```bash
-pyinstaller --noconfirm --windowed --name chitchat src/chitchat/main.py
+# 기본 모드 (코드 검증 -> output 디렉토리로 빌드)
+python scripts/build.py
+
+# 테스트 및 검증 건너뛰기
+python scripts/build.py --skip-tests
+
+# 빌드 산출물 경로 변경
+python scripts/build.py --output /path/to/custom_dir
 ```
 
-### 10.2 빌드 산출물 확인
+### 10.2 빌드 실행 (인터랙티브 모드)
 
-빌드 성공 시 아래 파일이 생성되어야 한다:
+명령어가 기억나지 않는다면 `--interactive` 옵션을 사용한다.
+
+```bash
+python scripts/build.py --interactive
+```
+
+### 10.3 빌드 산출물 확인
+
+빌드 성공 시 지정된 출력 디렉토리(기본값: `./output`)에 아래 파일이 생성되어야 한다:
 
 ```txt
-dist/chitchat/          ← one-folder 패키지
+output/chitchat/          ← one-folder 패키지
   chitchat              ← 실행 파일 (Windows: chitchat.exe)
   _internal/            ← 의존성 번들
 build/                  ← 빌드 중간 파일
