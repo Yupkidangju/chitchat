@@ -28,6 +28,7 @@ def assemble_prompt(
     current_input: str,
     context_budget: int,
     max_output_tokens: int = 2048,
+    history_message_ids: list[str] | None = None,
 ) -> AssembledPrompt:
     """프롬프트를 조립한다.
 
@@ -42,6 +43,8 @@ def assemble_prompt(
         current_input: 현재 사용자 입력.
         context_budget: 컨텍스트 윈도우 토큰 수.
         max_output_tokens: 최대 출력 토큰 수 (예산에서 차감).
+        history_message_ids: 히스토리 메시지 ID 리스트 (history_messages와 동일 순서).
+            None이면 잘린 메시지 ID 추적을 생략한다.
 
     Returns:
         조립 완료된 AssembledPrompt.
@@ -82,11 +85,15 @@ def assemble_prompt(
     history_budget = available - fixed_tokens
     history_blocks: list[PromptBlock] = []
     truncated = 0
+    # [v0.1.4] 잘린 메시지 인덱스 추적 (spec §12.6 truncated_history_message_ids)
+    # history_budget <= 0 경로에서도 UnboundLocalError 방지를 위해 상위 스코프에서 초기화
+    included_indices: set[int] = set()
 
     if include_history and history_budget > 0:
         # 최신 메시지부터 역순으로 삽입 (spec.md §12.3)
         budget_left = history_budget
-        for role, content in reversed(history_messages):
+        for idx in range(len(history_messages) - 1, -1, -1):
+            role, content = history_messages[idx]
             tokens = estimate_tokens(content)
             if budget_left - tokens < 0:
                 truncated += 1
@@ -94,8 +101,12 @@ def assemble_prompt(
             history_blocks.insert(0, PromptBlock(
                 kind="chat_history", content=content, token_estimate=tokens,
             ))
+            included_indices.add(idx)
             budget_left -= tokens
         truncated = len(history_messages) - len(history_blocks)
+    elif include_history and history_messages:
+        # [v0.1.4] 예산 소진으로 히스토리 전체가 잘린 경우 — truncated_count 정합성 보장
+        truncated = len(history_messages)
 
     # 최종 블록 리스트 조립: prompt_order 순서를 따른다
     all_blocks: list[PromptBlock] = []
@@ -154,6 +165,14 @@ def assemble_prompt(
     result.total_tokens = sum(b.token_estimate for b in all_blocks)
     result.history_count = len(history_blocks)
     result.truncated_count = truncated
+
+    # [v0.1.4] spec §12.6: 잘린 히스토리 메시지 ID 수집
+    if history_message_ids and include_history:
+        result.truncated_history_message_ids = [
+            history_message_ids[i] for i in range(len(history_messages))
+            if i not in included_indices
+        ]
+    # included_indices가 정의되지 않은 경우 (히스토리 비활성) 빈 리스트 유지
 
     logger.info(
         "프롬프트 조립 완료: %d 블록, %d 토큰, 히스토리 %d/%d",

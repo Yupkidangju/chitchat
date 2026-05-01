@@ -417,7 +417,7 @@ Each item includes:
 Rules:
 
 - `system_base` cannot be disabled or deleted.
-- `current_user_message` cannot be disabled or deleted.
+- `current_input` cannot be disabled or deleted.
 - `chat_history` cannot be deleted but can be disabled.
 - Reordering updates `order_index` in increments of 10.
 
@@ -449,18 +449,25 @@ Goal: create and run chat sessions while keeping prompt assembly inspectable.
 
 Structure:
 
-1. Session sidebar
-2. Chat header with selected UserPersona and ChatProfile
-3. Message timeline
-4. Composer bar
-5. Prompt Inspector drawer/panel
+1. Session sidebar + ChatProfile / UserPersona 선택 드롭다운
+2. Message timeline (스크롤 영역)
+3. Composer bar (입력 + Send/Stop)
+4. Token Budget Bar
+5. Inspector panel (세션 정보 / 프롬프트 스냅샷 탭)
 
 Primary actions:
 
-- `New Chat`: enabled when UserPersona and ChatProfile are selected.
+- `New Chat`: ChatProfile과 UserPersona가 드롭다운에서 선택된 상태에서만 enabled.
 - `Send`: enabled only when session status is `active` and input is non-empty.
 - `Stop`: enabled only when session status is `streaming`.
-- `Show Prompt`: enabled when an assistant message with `prompt_snapshot_json` is selected.
+- `Delete`: 현재 선택된 세션을 삭제 (확인 다이얼로그 후).
+- `Show Prompt`: assistant 메시지의 스냅샷이 Inspector 탭에 자동 표시됨.
+
+[v0.1.2 구현 상태]:
+- ✅ 스트리밍 실시간 표시: AI 응답이 매 청크마다 버블에 즉시 표시 (update_content)
+- ✅ ChatProfile / UserPersona 선택 드롭다운: 사용자가 세션 생성 전 직접 선택
+- ✅ 세션 삭제: 삭제 버튼 + 확인 다이얼로그
+- ✅ 자동 스크롤: 스트리밍 중 타임라인이 자동으로 맨 아래로 이동
 
 ### 10.2 ProviderPage
 
@@ -483,6 +490,9 @@ Primary actions:
 
 The stepper must block visual confusion. `Fetch Models` is disabled until the last health check is successful.
 
+> **구현 상태 (v0.1.3)**: `provider_page.py`에서 5단계 셋업 진행 상태를 시각적 체크리스트로 표시.
+> Provider 선택 / 저장 / 테스트 / 모델 패치 시 자동 갱신. spec §13.1 상태 머신 준수.
+
 ### 10.3 ModelProfilePage
 
 Goal: create model profiles from loaded capability data and show only supported settings.
@@ -501,9 +511,10 @@ Rules:
 - Hidden unsupported parameters with non-null values produce a save-blocking error.
 - LM Studio unknown token limits show a yellow warning and use fixed defaults.
 
-> **구현 상태 (v0.1.0b0)**: `model_profile_page.py`에서 MVP 구현 완료.
+> **구현 상태 (v0.1.3)**: `model_profile_page.py`에서 MVP 구현 완료.
 > Provider 선택 → 캐시된 모델 선택 → context/max_output/temperature/top_p/top_k/frequency_penalty/presence_penalty 설정 → 저장.
-> Unsupported parameter hiding 및 capability summary는 향후 안정화 단계에서 추가.
+> **DD-13 적용 (v0.1.3)**: 모델 변경 시 `supported_parameters_json` 조회 → 미지원 파라미터 자동 숨김.
+> capability 정보 불완전 시 경고 표시 + 모든 파라미터 표시. SC-06 해소.
 
 ### 10.4 UserPersonaPage
 
@@ -517,66 +528,139 @@ Structure:
 
 Fields:
 
-- name
-- description
-- speaking_style
-- boundaries
+- name — placeholder: `예: 차분한 소설가`
+- description — placeholder: `예: 판타지 소설을 쓰는 작가입니다...`
+- speaking_style — placeholder: `예: 존댓말을 사용합니다. 짧고 간결한 문장을 선호합니다.`
+- boundaries (원치 않는 내용) — placeholder: `예: 폭력적이거나 선정적인 내용은 피해주세요...`
 - enabled
 
 ### 10.5 AIPersonaPage
 
-Goal: define one or more assistant characters used in ChatProfile.
+[v0.2.0] Vibe Fill Phase 1에서 전면 개편됨.
 
-Structure:
+목표: AI 캐릭터 페르소나를 14개 구조화된 필드로 정의하고, 바이브 텍스트로 AI가 자동 생성하는 기능을 제공한다.
 
-1. AIPersona list
-2. Editor form
-3. Usage preview showing selected ChatProfiles using this persona
+구조:
 
-Fields:
+1. 좌측: AI 페르소나 목록 (이름 — 역할 형식)
+2. 우측: QScrollArea 기반 편집 영역
+   - ✨ Vibe Fill 영역 (바이브 입력 + Provider/Model 드롭다운 + AI로 채우기)
+   - 기본 정보 섹션 (이름*, 나이, 성별, 직업/역할*)
+   - 외면 섹션 (외모)
+   - 내면 섹션 (성격*, 말투*, 약점/두려움)
+   - 서사 섹션 (배경 스토리, 인간관계)
+   - 능력 섹션 (특기/능력, 취미/관심사)
+   - 행동 규칙 섹션 (목표, 제한)
+   - 저장 버튼
 
-- name
-- role_name
-- personality
-- speaking_style
-- goals
-- restrictions
-- enabled
+필드 (14개):
+
+| # | 필드명 | DB 컬럼 | 필수 | 설명 |
+|---|---|---|---|---|
+| 1 | 이름 | name | ✅ | 캐릭터 이름 |
+| 2 | 나이 | age | — | 나이 또는 나이대 |
+| 3 | 성별 | gender | — | 성별 |
+| 4 | 직업/역할 | role_name | ✅ | 세계 내 역할 |
+| 5 | 외모 | appearance | — | 시각적 묘사 |
+| 6 | 성격 | personality | ✅ | 핵심 성격 |
+| 7 | 말투 | speaking_style | ✅ | 대화 패턴 |
+| 8 | 약점/두려움 | weaknesses | — | 약점이나 공포 |
+| 9 | 배경 스토리 | backstory | — | 과거 배경 |
+| 10 | 인간관계 | relationships | — | 주요 관계 |
+| 11 | 특기/능력 | skills | — | 능력/재능 |
+| 12 | 취미/관심사 | interests | — | 여가 활동 |
+| 13 | 목표 | goals | — | 행동 방향 |
+| 14 | 제한 | restrictions | — | 금지 행동 |
+
+Vibe Fill UX 흐름:
+
+1. 사용자가 바이브 텍스트 입력
+2. Provider + Model 선택
+3. "✨ AI로 채우기" 클릭 → AsyncSignalBridge로 비동기 LLM 호출
+4. 로딩 중: "🔄 캐릭터 생성 중..." 상태 표시, 버튼 비활성화
+5. 성공 시: 14개 필드를 한꺼번에 채움
+6. 사용자가 결과 검토 후 수정
+7. "💾 저장" 클릭
 
 ### 10.6 LorebookPage
 
-Goal: manage keyword-triggered lore entries and make activation behavior visible.
+[v0.2.0] Vibe Fill Phase 2에서 전면 개편됨.
 
-Structure:
+목표: 키워드 트리거 기반 로어 엔트리를 관리하고, 바이브 텍스트로 AI가 자동 생성하는 기능을 제공한다.
 
-1. Lorebook list
-2. Entry table
-3. Entry editor
-4. Keyword match preview
+구조:
 
-Rules:
+1. 좌측: 로어북 목록 + 로어북 편집
+2. 중앙: 엔트리 목록 ([우선순위] 제목 형식)
+3. 우측: QScrollArea 기반 편집 영역
+   - ✨ Vibe Fill 패널 (AI Persona 선택 + 바이브 입력 + Provider/Model)
+   - 생성 미리보기 체크리스트
+   - 수동 엔트리 편집 폼
 
-- `Add Entry` is enabled when a lorebook is selected.
-- `Save Entry` requires title, at least one activation key, and content.
-- Priority range is 0–1000.
-- Activation keys appear as chips and can be edited inline.
+Vibe Fill UX 흐름:
+
+1. 로어북 선택 (필수)
+2. AI Persona 선택 (선택 — 캐릭터 맥락 주입)
+3. 바이브 텍스트 입력 (예: "고서관의 유물, 비밀 장소, 저주된 책들")
+4. Provider + Model 선택
+5. "✨ AI로 엔트리 생성" 클릭 → 비동기 LLM 호출
+6. 결과가 **미리보기 체크리스트**로 표시 (기본 전체 체크)
+7. 사용자가 원치 않는 엔트리 체크 해제
+8. "📥 선택 항목 추가 저장" 클릭 → 체크된 것만 DB에 Append
+9. 반복 사용 가능 (기존 엔트리 유지, 새 바이브마다 중복 방지 컨텍스트 자동 주입)
+
+규칙:
+
+- 로어북 선택 없이 Vibe Fill 불가.
+- 기존 수동 엔트리 편집/삭제 기능 유지.
+- Save Entry는 title, 최소 1개 activation key, content 필수.
+- Priority 범위: 0~1000.
+- AI 생성 시 최대 10개 엔트리 제한.
 
 ### 10.7 WorldbookPage
 
-Goal: manage always-inserted world entries selected by ChatProfile.
+[v0.2.0] Vibe Fill Phase 3에서 전면 개편됨.
 
-Structure:
+목표: 항상 삽입되는 세계관 엔트리를 관리하고, 바이브 텍스트로 AI가 10개 카테고리별 세계관을 자동 생성하는 기능을 제공한다.
 
-1. Worldbook list
-2. Entry table
-3. Entry editor
-4. Token insert preview
+구조:
 
-Rules:
+1. 좌측: 월드북 목록 + 월드북 편집
+2. 중앙: 엔트리 목록 ([우선순위] 제목 형식)
+3. 우측: QScrollArea 기반 편집 영역
+   - ✨ Vibe Fill 패널 (AI Persona×2 + Lorebook×2 + 바이브 + 카테고리 체크박스 + Provider/Model)
+   - QProgressBar 진행률 표시
+   - 생성 미리보기 체크리스트
+   - 수동 엔트리 편집 폼
 
-- World entries do not use activation keys in v0.1.
-- Enabled selected entries are inserted by priority.
-- Entry content limit is 6000 characters.
+카테고리 (10개):
+
+역사, 지리, 세력/국가, 종족, 마법/기술, 경제, 종교/신화, 던전/위험지대, 일상/문화, 규칙/법칙
+
+Vibe Fill UX 흐름:
+
+1. 월드북 선택 (필수)
+2. AI Persona 복수 선택 (선택)
+3. Lorebook 복수 선택 (선택)
+4. 바이브 텍스트 입력
+5. 카테고리 체크박스 선택 (기본 전체 체크)
+6. Provider + Model 선택
+7. "✨ AI로 세계관 생성" 클릭
+8. 진행률 표시: "████░░ 2/4 — 종족, 마법, 경제 생성 중..."
+9. 전체 완료 → 미리보기 체크리스트
+10. 체크 on/off → "📥 선택 항목 추가 저장"
+
+청크 분할 알고리즘:
+
+- 카테고리를 2~3개씩 4그룹으로 분할하여 LLM 4번 호출
+- 이전 청크 엔트리 제목만 다음 청크에 넘겨 일관성 유지 + 토큰 절약
+- 부분 실패 시 이전 청크 결과 유지
+
+규칙:
+
+- 월드북 선택 없이 Vibe Fill 불가.
+- 기존 수동 엔트리 편집/삭제 기능 유지.
+- Entry content limit: 6000 characters.
 
 ### 10.8 ChatProfilePage
 
@@ -596,9 +680,11 @@ Rules:
 - Lorebook and worldbook selection max is 10 each.
 - System base max length is 4000.
 
-> **구현 상태 (v0.1.0b0)**: `chat_profile_page.py`에서 MVP 구현 완료.
-> ModelProfile 선택 + AI Persona 다중 선택 + Lorebook/Worldbook 다중 선택 + system_base 입력 + 기본 PromptOrder 자동 적용 → 저장.
-> 선택 개수 제한(AI persona max 5, Lorebook/Worldbook max 10) 및 Prompt block summary는 향후 안정화 단계에서 추가.
+> **구현 상태 (v0.1.1)**: `chat_profile_page.py`에서 태그 + [추가...] 다이얼로그 패턴으로 개선.
+> AI 페르소나 / 로어북 / 월드북 각 영역에 `EntityPickerDialog` 모달 적용.
+> 선택된 항목이 태그로 표시되며 [×]로 개별 해제 가능.
+> 빈 상태일 때 안내 문구가 표시되어 사용자 행동을 유도함.
+> 선택 개수 제한: AI persona max 5, Lorebook/Worldbook max 10 (spec.md §8.3 준수).
 
 ### 10.9 PromptOrderPage
 
@@ -617,6 +703,10 @@ Rules:
 - Dragging updates visual order before save.
 - Required block locks are visible.
 - Disabled blocks remain in list with muted label.
+
+> **구현 상태 (v0.1.2)**: 미구현. v0.1.3에서 신규 구현 예정.
+> spec.md §12.2의 Default PromptOrder 기준으로 구현.
+> DD-05 결정에 따른 차단된 블록 룰 적용.
 
 ## 11. Structural Section Maps
 
@@ -901,16 +991,25 @@ Rules:
 │ Profiles      │ Composition                            │ Prompt Summary      │
 │ ▣ Nocturne    │ Name * [Nocturne Main Chat          ]  │ 7 blocks enabled    │
 │ ▢ Draft       │ Model Profile [Roleplay Balanced ▼]    │ system_base         │
-│               │ AI Personas *                          │ ai_persona x1       │
-│               │ [Librarian Mira ✓] [max 5]             │ worldbook x1        │
-│               │ Lorebooks                              │ lorebook x1         │
-│               │ [Nocturne City ✓] [max 10]             │ user_persona        │
-│               │ Worldbooks                             │ chat_history        │
-│               │ [Nocturne Rules ✓] [max 10]            │ current_user_msg    │
-│               │ System Base                            ├─────────────────────┤
-│               │ ┌───────────────────────────────────┐ │ Validation          │
-│               │ │ You are a helpful...              │ │ ✅ model profile     │
-│               │ └───────────────────────────────────┘ │ ✅ 1 AI persona      │
+│               │                                        │ ai_persona x1       │
+│               │ AI 페르소나              [+ 추가...]   │ worldbook x1        │
+│               │ ┌──────────┐ ┌───────────────────┐    │ lorebook x1         │
+│               │ │미라 [×]  │ │늑대인간 가이드 [×]│    │ user_persona        │
+│               │ └──────────┘ └───────────────────┘    │ chat_history        │
+│               │                                        │ current_user_msg    │
+│               │ 로어북                   [+ 추가...]   ├─────────────────────┤
+│               │ ┌──────────────┐                      │ Validation          │
+│               │ │Nocturne [×]  │                      │ ✅ model profile     │
+│               │ └──────────────┘                      │ ✅ 1 AI persona      │
+│               │                                        │                     │
+│               │ 월드북                   [+ 추가...]   │                     │
+│               │ ┌──────────────────┐                  │                     │
+│               │ │Nocturne Rules [×]│                  │                     │
+│               │ └──────────────────┘                  │                     │
+│               │ System Base                            │                     │
+│               │ ┌───────────────────────────────────┐ │                     │
+│               │ │ You are a helpful...              │ │                     │
+│               │ └───────────────────────────────────┘ │                     │
 └───────────────┴───────────────────────────────────────┴─────────────────────┘
 ```
 

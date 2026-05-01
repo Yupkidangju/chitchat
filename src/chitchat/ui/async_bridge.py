@@ -46,6 +46,7 @@ class AsyncSignalBridge(QObject):
     # 범용 비동기 작업 시그널
     task_result = Signal(object)  # 결과 객체
     task_error = Signal(str)
+    task_progress = Signal(int, int, str)  # (current, total, status)
     task_finished = Signal()  # finally — 성공/실패 무관하게 항상 발생
 
     def __init__(self, parent: QObject | None = None) -> None:

@@ -59,6 +59,8 @@ class AssembledPrompt:
     history_count: 포함된 히스토리 메시지 수
     truncated_count: 잘린 히스토리 메시지 수
     budget_tokens: 컨텍스트 예산 총 토큰
+    matched_lore_entry_ids: 매칭된 로어 엔트리 ID 목록 (spec §12.6)
+    truncated_history_message_ids: 예산 초과로 잘린 히스토리 메시지 ID 목록 (spec §12.6)
     """
     blocks: list[PromptBlock] = field(default_factory=list)
     messages: list[MessageSlot] = field(default_factory=list)
@@ -66,3 +68,6 @@ class AssembledPrompt:
     history_count: int = 0
     truncated_count: int = 0
     budget_tokens: int = 0
+    # [v0.1.4] spec §12.6 PromptSnapshot 계약 필드 추가
+    matched_lore_entry_ids: list[str] = field(default_factory=list)
+    truncated_history_message_ids: list[str] = field(default_factory=list)

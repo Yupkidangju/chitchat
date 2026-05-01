@@ -163,7 +163,7 @@ class LMStudioProvider:
         """
         base_url = self._get_base_url(profile)
 
-        body: dict = {
+        body: dict[str, object] = {
             "model": request.model_id,
             "messages": [
                 {"role": m.role, "content": m.content}

@@ -23,7 +23,7 @@ class TokenBudgetBar(QWidget):
         self._label = f"{self._used:,} / {self._total:,} ({ratio:.0%})"
         self.update()
 
-    def paintEvent(self, _event: object) -> None:  # type: ignore[override]
+    def paintEvent(self, _event: object) -> None:  # noqa: N802
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         w, h = self.width(), self.height()

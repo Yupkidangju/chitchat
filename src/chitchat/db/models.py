@@ -113,7 +113,12 @@ class UserPersonaRow(Base):
 
 
 class AIPersonaRow(Base):
-    """AI 캐릭터 페르소나 테이블. spec.md §9.1 ai_personas."""
+    """AI 캐릭터 페르소나 테이블. spec.md §9.1 ai_personas.
+
+    [v0.2.0] Vibe Fill을 위한 14개 필드 확장.
+    기존 6개 필드(name, role_name, personality, speaking_style, goals, restrictions)에
+    8개 필드(age, gender, appearance, backstory, relationships, skills, interests, weaknesses)를 추가.
+    """
     __tablename__ = "ai_personas"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True)
@@ -124,6 +129,15 @@ class AIPersonaRow(Base):
     goals: Mapped[str] = mapped_column(Text, nullable=False, default="")
     restrictions: Mapped[str] = mapped_column(Text, nullable=False, default="")
     enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # [v0.2.0] Vibe Fill 확장 필드 — 모두 optional, 하위 호환성 보장
+    age: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    gender: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    appearance: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    backstory: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    relationships: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    skills: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    interests: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    weaknesses: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
 # --- 로어북 ---

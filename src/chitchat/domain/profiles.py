@@ -55,6 +55,7 @@ class UserPersonaData(BaseModel):
 class AIPersonaData(BaseModel):
     """AI 캐릭터 페르소나 정의.
 
+    [v0.2.0] Vibe Fill 확장 필드 포함 (14개 필드 총합).
     role_name은 캐릭터의 역할 이름이다 (예: "고서관 관리자 미라").
     personality는 캐릭터의 성격 기술이다.
     speaking_style은 캐릭터의 말투 기술이다.
@@ -69,6 +70,15 @@ class AIPersonaData(BaseModel):
     goals: str = Field(default="", max_length=3000)
     restrictions: str = Field(default="", max_length=3000)
     enabled: bool = True
+    # [v0.2.0] Vibe Fill 확장 필드
+    age: str = Field(default="", max_length=100)
+    gender: str = Field(default="", max_length=100)
+    appearance: str = Field(default="", max_length=4000)
+    backstory: str = Field(default="", max_length=6000)
+    relationships: str = Field(default="", max_length=4000)
+    skills: str = Field(default="", max_length=2000)
+    interests: str = Field(default="", max_length=2000)
+    weaknesses: str = Field(default="", max_length=2000)
 
 
 # --- 로어북 ---

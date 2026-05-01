@@ -116,15 +116,42 @@ class TestSC10_BuildReady:
     """SC-10: 빌드 준비 상태 확인."""
     def test_all_imports_resolve(self) -> None:
         """모든 핵심 모듈이 import 가능한지 확인한다."""
+        # [v0.1.4] 빈 테스트였던 것을 실제 import 검증으로 보강
+        import importlib
+        core_modules = [
+            "chitchat.app",
+            "chitchat.config.paths",
+            "chitchat.config.settings",
+            "chitchat.db.engine",
+            "chitchat.db.models",
+            "chitchat.db.repositories",
+            "chitchat.domain.ids",
+            "chitchat.domain.profiles",
+            "chitchat.domain.provider_contracts",
+            "chitchat.domain.prompt_blocks",
+            "chitchat.domain.prompt_assembler",
+            "chitchat.domain.lorebook_matcher",
+            "chitchat.domain.chat_session",
+            "chitchat.providers.base",
+            "chitchat.providers.registry",
+            "chitchat.providers.capability_mapper",
+            "chitchat.secrets.key_store",
+            "chitchat.services.provider_service",
+            "chitchat.services.profile_service",
+            "chitchat.services.prompt_service",
+            "chitchat.services.chat_service",
+        ]
+        for mod in core_modules:
+            importlib.import_module(mod)
 
     def test_pyproject_version(self) -> None:
-        """pyproject.toml의 버전이 0.1.0b0인지 확인한다."""
+        """pyproject.toml의 버전이 0.3.0인지 확인한다."""
         import tomllib
         from pathlib import Path
         toml_path = Path(__file__).parent.parent / "pyproject.toml"
         with open(toml_path, "rb") as f:
             data = tomllib.load(f)
-        assert data["project"]["version"] == "0.1.0b0"
+        assert data["project"]["version"] == "0.3.0"
 
     def test_required_docs_exist(self) -> None:
         """필수 문서 파일이 존재하는지 확인한다."""

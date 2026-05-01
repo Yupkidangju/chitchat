@@ -165,15 +165,15 @@ OS별 앱 데이터 경로 결정, SQLite 엔진 생성, Alembic 마이그레이
 | P3-03 | `navigation.py`: 사이드바 | S | `src/chitchat/ui/navigation.py` |
 | P3-04 | `app.py`: create_app() 팩토리 완성 | S | `src/chitchat/app.py` |
 | P3-05 | `main.py`: 엔트리 포인트 완성 | XS | `src/chitchat/main.py` |
-| P3-06 | `provider_vm.py` + `provider_page.py` | M | `src/chitchat/ui/viewmodels/provider_vm.py`, `src/chitchat/ui/pages/provider_page.py` |
-| P3-07 | `model_service.py` + `model_parameter_form.py` + `model_profile_page.py` | M | Services + UI |
-| P3-08 | `profile_service.py` (UserPersona, AIPersona) | S | `src/chitchat/services/profile_service.py` |
-| P3-09 | `persona_page.py` + `ai_persona_page.py` | M | UI pages |
+| P3-06 | `provider_page.py`: Provider CRUD + 연결 테스트 + 모델 패치 UI | M | `src/chitchat/ui/pages/provider_page.py` |
+| P3-07 | `model_profile_page.py`: 모델 프로필 CRUD UI | M | `src/chitchat/ui/pages/model_profile_page.py` |
+| P3-08 | `profile_service.py` (UserPersona, AIPersona, ModelProfile 포함) | S | `src/chitchat/services/profile_service.py` |
+| P3-09 | `persona_page.py` (UserPersona + AIPersona 통합) | M | `src/chitchat/ui/pages/persona_page.py` |
 | P3-10 | `lorebook_page.py` | M | `src/chitchat/ui/pages/lorebook_page.py` |
 | P3-11 | `worldbook_page.py` | M | `src/chitchat/ui/pages/worldbook_page.py` |
-| P3-12 | `chat_profile_page.py` | M | `src/chitchat/ui/pages/chat_profile_page.py` |
-| P3-13 | `prompt_order_page.py` + `prompt_order_list.py` | M | UI page + widget |
-| P3-14 | `profile_vm.py` | M | `src/chitchat/ui/viewmodels/profile_vm.py` |
+| P3-12 | `chat_profile_page.py` + `entity_picker_dialog.py` | M | `src/chitchat/ui/pages/chat_profile_page.py` |
+| P3-13 | `prompt_order_page.py` | M | `src/chitchat/ui/pages/prompt_order_page.py` |
+| P3-14 | DD-11: ViewModel 계층은 MVP v0.1에서 의도적 생략 (v0.2 도입 예정) | — | — |
 
 ### 테스트
 
@@ -255,11 +255,10 @@ OS별 앱 데이터 경로 결정, SQLite 엔진 생성, Alembic 마이그레이
 | ID | 항목 | 크기 | 파일 |
 |---|---|---|---|
 | P5-01 | `chat_service.py`: 스트리밍 실행/취소, 세션 상태 전이 | M | `src/chitchat/services/chat_service.py` |
-| P5-02 | `chat_vm.py`: ChatPage ViewModel | M | `src/chitchat/ui/viewmodels/chat_vm.py` |
+| P5-02 | `async_bridge.py`: Qt Signal 기반 asyncio ↔ UI 브리지 (DD-11: ViewModel 대신 사용) | M | `src/chitchat/ui/async_bridge.py` |
 | P5-03 | `chat_page.py`: 세션 리스트, 타임라인, 컴포저, Inspector | L | `src/chitchat/ui/pages/chat_page.py` |
 | P5-04 | `chat_message_view.py`: 메시지 버블 위젯 | M | `src/chitchat/ui/widgets/chat_message_view.py` |
 | P5-05 | `token_budget_bar.py`: 토큰 예산 시각화 | S | `src/chitchat/ui/widgets/token_budget_bar.py` |
-| P5-06 | asyncio ↔ Qt 이벤트 루프 통합 | M | `src/chitchat/app.py` (또는 별도 모듈) |
 
 ### 테스트
 
@@ -321,12 +320,53 @@ PyInstaller one-folder 빌드가 성공하고, 빌드된 앱에서 전체 플로
 - [ ] SC-03~05: Provider 실제 API 호출 (수동 확인 필요)
 - [ ] SC-09: 스트리밍 Stop 취소 (수동 확인 필요)
 - [x] `ruff check .` 0 에러
-- [x] 전체 테스트 129개 통과
+- [x] 전체 테스트 223개 통과
 
 ### 체크포인트 판정
 
-✅ P6 완료 (자동화 가능 항목): PyInstaller spec + 빌드 스크립트 + SC 자동 수용 테스트 9개 통과 + 129개 전체 테스트 통과.
-SC-03~05, SC-09는 실제 API Key 및 Provider 서버가 필요하여 수동 검증 대상.
+✅ P6 완료 (자동화 가능 항목): PyInstaller spec + 빌드 스크립트 + SC 자동 수용 테스트 6개(SC-01~02, SC-06~08, SC-10) 통과 + 223개 전체 테스트 통과.
+SC-03~05, SC-09(4개)는 실제 API Key 및 Provider 서버가 필요하여 수동 검증 대상.
+
+---
+
+## 8. Phase 8: Vibe Fill System (v0.2.0)
+
+### 목표
+
+사용자의 짧은 바이브 문자열을 바탕으로 AI가 구체적인 롤플레이 데이터(캐릭터, 로어북, 세계관)를 자동 생성하는 기능을 구현하고 검증한다.
+
+### 구현 항목
+
+| ID | 항목 | 크기 | 파일 |
+|---|---|---|---|
+| P8-01 | Phase 1: Persona (14개 필드 확장 및 프롬프트 조립) | M | `domain/vibe_fill.py`, `persona_page.py` |
+| P8-02 | Phase 2: Lorebook (배열 파싱 및 Append UI) | M | `domain/vibe_fill.py`, `lorebook_page.py` |
+| P8-03 | Phase 3: Worldbook (10개 카테고리 템플릿 및 청크 연쇄) | L | `domain/vibe_fill.py`, `services/vibe_fill_service.py`, `worldbook_page.py` |
+| P8-04 | Vibe Fill 통합 테스트 케이스 보강 및 223개 테스트 통과 | M | `tests/test_vibe_fill_service.py`, `tests/test_migrations.py` |
+
+### 테스트
+
+| 테스트 | 검증 대상 |
+|---|---|
+| Phase 1 Tests | 단일 캐릭터 JSON 파싱, 기본값 폴백, 프롬프트 조립 |
+| Phase 2 Tests | 로어북 JSON 배열 파싱, 키 정규화, priority 클램핑 |
+| Phase 3 Tests | 10개 카테고리 분할, 청크 설정, 연쇄 컨텍스트 주입 |
+
+### 알고리즘 메모
+
+- **Worldbook 청크 연쇄**: `[역사, 지리, 세력/국가]`, `[종족, 마법/기술, 경제]`, `[종교/신화, 던전/위험지대]`, `[일상/문화, 규칙/법칙]` 4개 청크로 분할하여 LLM을 호출한다.
+- 이전 청크 결과 중 `title`만 추출하여 다음 청크 시스템 프롬프트에 주입 (토큰 오버플로 방지 및 논리적 일관성 유지).
+
+### 검증 포인트
+
+- [x] Phase 1, 2, 3 로직 및 61개 단위 테스트 + 서비스 결합 테스트 작성 완료
+- [x] `ruff check .` 0 에러
+- [x] `mypy src/chitchat` 0 에러
+- [x] `pytest -q` 전체 223개 통과 (test_vibe_fill.py 61개 + test_vibe_fill_service.py 결합 테스트 + test_migrations.py 4개 포함)
+
+### 체크포인트 판정
+
+✅ P8 완료: Vibe Fill 전체 파이프라인(Phase 1~3), DB 마이그레이션 회귀 방지 포함 223개 테스트 통과.
 
 ---
 
@@ -367,5 +407,6 @@ SC-03~05, SC-09는 실제 API Key 및 Provider 서버가 필요하여 수동 검
 | P4 | 5 | M | ~60 |
 | P5 | 6 | L | ~66 |
 | P6 | 5 | M | ~68 |
+| P8 | 4 | L | ~72 |
 
-전체 Task: 56개. MVP 도달까지 6 Phase.
+전체 Task: 60개. MVP 도달까지 6 Phase, 추가 Vibe Fill 1 Phase.

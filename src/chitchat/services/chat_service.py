@@ -10,7 +10,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
-from chitchat.db.models import ChatMessageRow, ChatSessionRow
+from chitchat.db.models import ChatMessageRow, ChatProfileRow, ChatSessionRow, UserPersonaRow
 from chitchat.db.repositories import RepositoryRegistry
 from chitchat.domain.chat_session import InvalidSessionTransitionError, validate_session_transition
 from chitchat.domain.ids import new_id
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # 콜백 타입: delta 텍스트를 UI에 전달
 OnChunkCallback = Callable[[str], None]
-OnFinishCallback = Callable[[str, dict | None], None]  # (full_text, usage)
+OnFinishCallback = Callable[[str, dict[str, object] | None], None]  # (full_text, usage)
 OnErrorCallback = Callable[[str], None]
 
 
@@ -69,13 +69,22 @@ class ChatService:
     def get_session_messages(self, session_id: str) -> list[ChatMessageRow]:
         return self._repos.chat_messages.get_by_session(session_id)
 
-    def get_available_chat_profiles(self) -> list:
+    def get_available_chat_profiles(self) -> list[ChatProfileRow]:
         """사용 가능한 채팅 프로필 목록을 반환한다."""
         return self._repos.chat_profiles.get_all()
 
-    def get_available_user_personas(self) -> list:
+    def get_available_user_personas(self) -> list[UserPersonaRow]:
         """사용 가능한 사용자 페르소나 목록을 반환한다."""
         return self._repos.user_personas.get_all()
+
+    def delete_session(self, session_id: str) -> bool:
+        """[v0.1.2] 채팅 세션과 관련 메시지를 삭제한다.
+
+        세션 삭제 시 해당 세션의 모든 메시지도 함께 삭제된다.
+        """
+        self._repos.chat_messages.delete_by_session(session_id)
+        return self._repos.chat_sessions.delete_by_id(session_id)
+
 
     def _transition(self, session: ChatSessionRow, target: ChatSessionStatus) -> ChatSessionRow:
         """세션 상태를 전이한다."""
@@ -101,19 +110,57 @@ class ChatService:
     def save_assistant_message(
         self, session_id: str, content: str,
         prompt_snapshot: AssembledPrompt | None = None,
-        usage: dict | None = None,
+        usage: dict[str, object] | None = None,
     ) -> ChatMessageRow:
-        """어시스턴트 메시지를 저장한다."""
+        """[v0.1.3] 어시스턴트 메시지를 저장한다.
+
+        prompt_snapshot이 전달되면 spec §12.6 규격의 PromptSnapshot을 생성한다.
+        포함 필드: chat_profile_id, user_persona_id, model_profile_id,
+        prompt_order, blocks, matched_lore_entry_ids,
+        truncated_history_message_ids, total_token_estimate, created_at_iso
+        """
         now = datetime.now(timezone.utc).isoformat()
         snapshot_json: str | None = None
         if prompt_snapshot:
+            # [v0.1.3] 세션에서 프로필 정보를 조회하여 spec §12.6 필드를 채운다
+            chat_profile_id = ""
+            user_persona_id = ""
+            model_profile_id = ""
+            session = self._repos.chat_sessions.get_by_id(session_id)
+            if session:
+                chat_profile_id = session.chat_profile_id
+                user_persona_id = session.user_persona_id
+                cp = self._repos.chat_profiles.get_by_id(session.chat_profile_id)
+                if cp:
+                    model_profile_id = cp.model_profile_id
+
+            # 로어북 매칭 ID: assembled에서 수집된 ID 사용
+            matched_lore_ids = prompt_snapshot.matched_lore_entry_ids
+
+            # 프롬프트 순서: 블록 종류 목록
+            prompt_order = [
+                {"kind": b.kind, "token_estimate": b.token_estimate}
+                for b in prompt_snapshot.blocks
+            ]
+
             snapshot_json = json.dumps({
-                "total_tokens": prompt_snapshot.total_tokens,
+                "chat_profile_id": chat_profile_id,
+                "user_persona_id": user_persona_id,
+                "model_profile_id": model_profile_id,
+                "prompt_order": prompt_order,
+                "blocks": [
+                    {"kind": b.kind, "token_estimate": b.token_estimate, "source_id": b.source_id}
+                    for b in prompt_snapshot.blocks
+                ],
+                "matched_lore_entry_ids": matched_lore_ids,
+                # [v0.1.4] spec §12.6: 잘린 히스토리 메시지 ID를 assembled에서 수집
+                "truncated_history_message_ids": prompt_snapshot.truncated_history_message_ids,
+                "total_token_estimate": prompt_snapshot.total_tokens,
+                "budget_tokens": prompt_snapshot.budget_tokens,
                 "history_count": prompt_snapshot.history_count,
                 "truncated_count": prompt_snapshot.truncated_count,
-                "budget_tokens": prompt_snapshot.budget_tokens,
-                "block_kinds": [b.kind for b in prompt_snapshot.blocks],
                 "usage": usage,
+                "created_at_iso": now,
             }, ensure_ascii=False)
         row = ChatMessageRow(
             id=new_id("msg_"), session_id=session_id, role="assistant",
@@ -174,6 +221,8 @@ class ChatService:
             # 히스토리 로드
             msgs = self._repos.chat_messages.get_by_session(session_id)
             history = [(m.role, m.content) for m in msgs]
+            # [v0.1.4] 잘린 메시지 ID 추적을 위해 ID 리스트 추출
+            history_ids = [m.id for m in msgs]
 
             # 프롬프트 조립
             settings = json.loads(mp.settings_json)
@@ -187,6 +236,7 @@ class ChatService:
                 current_input=history[-1][1] if history else "",
                 context_budget=context_budget,
                 max_output_tokens=max_output,
+                history_message_ids=history_ids[:-1] if len(history_ids) > 1 else None,
             )
 
             messages = [ChatCompletionMessage(role=m.role, content=m.content) for m in assembled.messages]
@@ -208,7 +258,7 @@ class ChatService:
             # 스트리밍 실행
             adapter = self._providers.get(prov.provider_kind)  # type: ignore[arg-type]
             full_text = ""
-            last_usage: dict | None = None
+            last_usage: dict[str, object] | None = None
 
             async for chunk in adapter.stream_chat(profile_data, request, api_key):
                 full_text += chunk.delta

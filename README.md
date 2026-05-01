@@ -11,6 +11,7 @@
 - **다중 Provider 지원**: Gemini, OpenRouter, LM Studio를 하나의 인터페이스로 사용
 - **모델 Capability 기반 설정**: 모델이 지원하는 파라미터만 표시하여 설정 오류 방지
 - **프롬프트 조립 시스템**: AI 페르소나, 로어북, 세계관, 사용자 페르소나를 조합하여 프롬프트 생성
+- **Vibe Fill AI 자동 생성 (v0.2)**: 짧은 바이브 텍스트를 바탕으로 AI 캐릭터, 로어북, 10개 카테고리의 세계관 엔트리를 자동 생성
 - **프롬프트 Inspector**: 실제 요청 직전 조합된 프롬프트와 로어북 매칭 결과를 실시간 검증
 - **스트리밍 채팅**: 실시간 스트리밍 응답과 Stop 취소 지원
 - **안전한 키 저장**: OS 키링을 사용하여 API Key를 안전하게 보호
@@ -31,7 +32,7 @@ python -m chitchat.main
 
 자세한 설치 가이드는 [BUILD_GUIDE.md](BUILD_GUIDE.md)를 참고하세요.
 
-> ⚠️ **v0.1.0b0 베타 주의사항**: v0.1.0b0은 초기 베타로 신규 DB만 지원합니다. v0.2 이전 스키마 변경 시 기존 로컬 DB 초기화가 필요할 수 있습니다.
+> 💡 **v0.2.0 업데이트 안내**: v0.2.0부터는 앱 시작 시 데이터베이스 스키마 자동 마이그레이션을 지원합니다.
 
 ---
 
@@ -46,6 +47,7 @@ python -m chitchat.main
 - **Multi-Provider Support**: Use Gemini, OpenRouter, and LM Studio through a single interface
 - **Model Capability-Based Settings**: Display only parameters supported by the selected model
 - **Prompt Assembly System**: Combine AI personas, lorebooks, worldbooks, and user personas to build prompts
+- **Vibe Fill AI Auto-Generation (v0.2)**: Automatically generate AI characters, lorebooks, and worldbook entries across 10 categories based on brief vibe texts
 - **Prompt Inspector**: Verify assembled prompts and lorebook matching results before each request
 - **Streaming Chat**: Real-time streaming responses with Stop cancellation support
 - **Secure Key Storage**: Protect API keys using the OS keyring
@@ -66,7 +68,7 @@ python -m chitchat.main
 
 See [BUILD_GUIDE.md](BUILD_GUIDE.md) for the full installation guide.
 
-> ⚠️ **v0.1.0b0 Beta Notice**: v0.1.0b0 is an initial beta build. Database migration from previous versions is not supported yet. If the schema changes before v0.2, users may need to reset the local database.
+> 💡 **v0.2.0 Update Notice**: Starting from v0.2.0, the app supports automatic database schema migration upon startup.
 
 ---
 
@@ -95,7 +97,7 @@ pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> ⚠️ **v0.1.0b0 ベータ注意**: v0.1.0b0は初期ベータで、新規DBのみサポートします。v0.2以前にスキーマが変更された場合、ローカルDBのリセットが必要になる可能性があります。
+> 💡 **v0.2.0 アップデートのお知らせ**: v0.2.0から、アプリ起動時のデータベーススキーマの自動マイグレーションをサポートします。
 
 ---
 
@@ -124,7 +126,7 @@ pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> ⚠️ **v0.1.0b0 Beta 注意事項**: v0.1.0b0 是初始 Beta 版本，僅支援全新 DB。在 v0.2 之前如果架構變更，可能需要重置本機 DB。
+> 💡 **v0.2.0 更新公告**: 從 v0.2.0 開始，應用程式啟動時支援資料庫架構的自動遷移。
 
 ---
 
@@ -152,14 +154,19 @@ pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> ⚠️ **v0.1.0b0 Beta 注意事项**: v0.1.0b0 是初始 Beta 版本，仅支持全新 DB。在 v0.2 之前如果架构变更，可能需要重置本地 DB。
+> 💡 **v0.2.0 更新公告**: 从 v0.2.0 开始，应用程序启动时支持数据库架构的自动迁移。
 
 ---
 
 ## License
 
-TBD
+MIT License — 자세한 내용은 [LICENSE](LICENSE) 파일을 참고하세요.
 
 ## Contributing
 
-TBD
+기여를 환영합니다! 이슈를 생성하거나 Pull Request를 제출해 주세요.
+
+- **버그 리포트**: GitHub Issues에 등록
+- **기능 제안**: Discussion 또는 Issue로 제안
+- **코드 기여**: Fork → Branch → PR 패턴
+- **커밋 메시지**: [Conventional Commits](https://www.conventionalcommits.org/) 형식 준수

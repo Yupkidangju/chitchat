@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # scripts/build.py
-# [v0.1.0b0] 크로스플랫폼 빌드 스크립트
+# [v0.2.0] 크로스플랫폼 빌드 스크립트
 #
 # 지원:
 # 1. 멀티 플랫폼 (Windows, macOS, Linux)
@@ -10,13 +10,33 @@
 import argparse
 import os
 import platform
-import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output"
+
+def ensure_venv() -> None:
+    """가상환경이 활성화되어 있지 않다면 프로젝트 내의 .venv 또는 venv를 찾아 재실행한다."""
+    if os.environ.get("VIRTUAL_ENV"):
+        return
+        
+    for venv_name in [".venv", "venv"]:
+        venv_path = PROJECT_ROOT / venv_name
+        if venv_path.is_dir():
+            if platform.system() == "Windows":
+                bin_dir = venv_path / "Scripts"
+                python_exe = bin_dir / "python.exe"
+            else:
+                bin_dir = venv_path / "bin"
+                python_exe = bin_dir / "python"
+            
+            if python_exe.exists() and str(Path(sys.executable).resolve()) != str(python_exe.resolve()):
+                print(f"🔄 가상환경({venv_name}) 파이썬으로 재실행합니다: {python_exe}")
+                os.environ["VIRTUAL_ENV"] = str(venv_path)
+                os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+                os.execv(str(python_exe), [str(python_exe)] + sys.argv)
 
 def run_cmd(cmd: list[str], cwd: Path | None = None, check: bool = True) -> bool:
     """명령어를 실행하고 성공 여부를 반환한다."""
@@ -56,6 +76,8 @@ def check_dependencies() -> bool:
     return True
 
 def main() -> None:
+    ensure_venv()
+    
     parser = argparse.ArgumentParser(description="Chitchat 멀티플랫폼 빌드 스크립트")
     parser.add_argument("--interactive", action="store_true", help="인터랙티브 모드로 실행")
     parser.add_argument("--skip-tests", action="store_true", help="코드 검증(ruff, pytest) 건너뛰기")
@@ -80,7 +102,7 @@ def main() -> None:
     out_dir = Path(args.output).resolve()
     
     os.chdir(PROJECT_ROOT)
-    print(f"\n=== Chitchat 빌드 스크립트 ===")
+    print("\n=== Chitchat 빌드 스크립트 ===")
     print(f"현재 플랫폼: {platform.system()} ({platform.release()})")
     print(f"출력 폴더: {out_dir}")
     
@@ -111,7 +133,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     
     build_cmd = [
-        "pyinstaller", 
+        sys.executable, "-m", "PyInstaller",
         "chitchat.spec", 
         "--noconfirm",
         "--distpath", str(out_dir),

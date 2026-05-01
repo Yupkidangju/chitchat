@@ -86,6 +86,15 @@ class ProfileService:
         restrictions: str = "",
         enabled: bool = True,
         existing_id: str | None = None,
+        # [v0.2.0] Vibe Fill 확장 필드
+        age: str = "",
+        gender: str = "",
+        appearance: str = "",
+        backstory: str = "",
+        relationships: str = "",
+        skills: str = "",
+        interests: str = "",
+        weaknesses: str = "",
     ) -> AIPersonaRow:
         row = AIPersonaRow(
             id=existing_id or new_id("ai_"),
@@ -96,6 +105,15 @@ class ProfileService:
             goals=goals,
             restrictions=restrictions,
             enabled=int(enabled),
+            # [v0.2.0] 확장 필드
+            age=age,
+            gender=gender,
+            appearance=appearance,
+            backstory=backstory,
+            relationships=relationships,
+            skills=skills,
+            interests=interests,
+            weaknesses=weaknesses,
         )
         saved = self._repos.ai_personas.upsert(row)
         logger.info("AIPersona 저장: %s", saved.name)
@@ -283,3 +301,18 @@ class ProfileService:
 
     def delete_chat_profile(self, id_: str) -> bool:
         return self._repos.chat_profiles.delete_by_id(id_)
+
+    def update_chat_profile_prompt_order(self, profile_id: str, prompt_order_json: str) -> ChatProfileRow:
+        """[v0.1.3] ChatProfile의 prompt_order_json만 갱신한다.
+
+        PromptOrderPage에서 순서 변경 시 호출된다.
+        기존 프로필의 다른 필드는 유지하고 prompt_order_json만 교체한다.
+        """
+        cp = self._repos.chat_profiles.get_by_id(profile_id)
+        if not cp:
+            msg = f"ChatProfile을 찾을 수 없습니다: {profile_id}"
+            raise ValueError(msg)
+        cp.prompt_order_json = prompt_order_json
+        saved = self._repos.chat_profiles.upsert(cp)
+        logger.info("ChatProfile 프롬프트 순서 갱신: %s", saved.name)
+        return saved

@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 문서 버전: `v0.1.0b0`
-- 상위 문서: `spec.md v0.1 BETA`
+- 문서 버전: `v0.2.0`
+- 상위 문서: `spec.md v0.2.0 BETA`
 - 목적: 처음 이 프로젝트를 클론한 사람이 이 문서만 보고 첫 실행을 성공시켜야 한다.
 
 ---
@@ -66,7 +66,8 @@ mkdir -p src/chitchat/secrets
 mkdir -p src/chitchat/services
 mkdir -p src/chitchat/ui/pages
 mkdir -p src/chitchat/ui/widgets
-mkdir -p src/chitchat/ui/viewmodels
+# DD-11: viewmodels는 MVP v0.1에서 의도적 생략 (v0.2 도입 예정)
+# mkdir -p src/chitchat/ui/viewmodels
 mkdir -p tests
 mkdir -p alembic/versions
 ```
@@ -123,7 +124,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "chitchat"
-version = "0.1.0b0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
   "PySide6>=6.11,<6.12",
@@ -221,7 +222,8 @@ def create_app() -> tuple[QApplication, MainWindow]:
     settings = AppSettings()
     ensure_app_dirs(settings.app_data_dir)
     engine = create_db_engine(settings.db_path)
-    Base.metadata.create_all(engine)
+    from chitchat.db.migrations import run_migrations
+    run_migrations(engine)  # Alembic으로 스키마 생성/업그레이드 일원화
     session_factory = create_session_factory(engine)
     repos = RepositoryRegistry(session_factory)
     # ... 서비스 생성, 페이지 등록
@@ -232,7 +234,13 @@ def create_app() -> tuple[QApplication, MainWindow]:
 
 ## 7. Alembic 설정
 
-### 7.1 alembic.ini 핵심 항목
+### 7.1 데이터베이스 마이그레이션
+
+- v0.2.0부터 `chitchat`은 `Base.metadata.create_all()`을 사용하지 않습니다.
+- `run_migrations(engine)` 단일 호출로 신규 DB 스키마 생성과 기존 DB 업그레이드를 모두 처리합니다.
+- 내부적으로 `alembic_version` 테이블과 컬럼 존재 여부를 분석하여 신규/v0.1/partial DB를 자동 감지합니다.
+
+### 7.2 alembic.ini 핵심 항목
 
 ```ini
 [alembic]
@@ -245,7 +253,7 @@ keys = root,sqlalchemy,alembic
 
 실제 런타임에서는 `alembic.ini`의 URL이 아닌 `migrations.py`에서 프로그래밍 방식으로 engine URL을 주입한다.
 
-### 7.2 첫 마이그레이션 생성
+### 7.3 첫 마이그레이션 생성
 
 ```bash
 alembic revision --autogenerate -m "initial_schema"
@@ -265,14 +273,11 @@ python -m chitchat.main
 
 1. App data 디렉토리 생성됨
 2. `chitchat.sqlite3` 파일 생성됨
-3. `Base.metadata.create_all(engine)` 으로 테이블 생성됨
+3. `run_migrations(engine)` → Alembic이 전체 스키마 생성
 4. MainWindow 표시됨
 5. Chat 페이지에 Setup Checklist Empty State 표시됨
 
-> **참고 (v0.1.0b0)**: 현재 버전에서는 `Base.metadata.create_all(engine)`만 사용하여 DB를 초기화한다.
-> Alembic 마이그레이션은 스키마가 포함되어 있으나, 앱 시작 시 자동 실행되지는 않는다.
-> 기존 DB 스키마를 변경해야 하는 v0.2 이후부터 `run_migrations(engine)`를 앱 시작에 통합할 예정이다.
-> 수동으로 마이그레이션이 필요하면 `alembic upgrade head`를 실행한다.
+> **참고 (v0.2.0)**: 앱 시작 시 `run_migrations(engine)`이 호출되어 기존 DB 스키마가 최신 상태로 유지된다. 수동으로 마이그레이션이 필요하면 `alembic upgrade head`를 실행한다.
 
 ---
 
@@ -364,8 +369,10 @@ chitchat.spec           ← PyInstaller spec (pyproject.toml과 별개)
 ## 11. 배포 전 체크리스트
 
 - [x] `ruff check .` 경고 없음
-- [x] `pytest -q` 전체 통과 (129개)
-- [x] SC-01 ~ SC-10 수용 테스트 자동화 통과
+- [x] `mypy src/chitchat` 오류 없음 (53개 소스 파일 검사)
+- [x] `pytest -q` 전체 통과 (223개)
+- [x] SC-01~02, SC-06~08, SC-10 수용 테스트 자동화 통과
+- [ ] SC-03~05, SC-09 수용 테스트 (실제 Provider API 필요, 수동 확인)
 - [x] PyInstaller spec 작성 완료
 - [ ] PyInstaller one-folder 빌드 성공 (OS별 수동 확인)
 - [ ] 빌드된 앱에서 Provider 등록 → 채팅 전체 플로우 동작

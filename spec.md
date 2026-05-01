@@ -136,7 +136,7 @@ MVP는 아래 10개 검증을 통과해야 완료로 본다.
 ```toml
 [project]
 name = "chitchat"
-version = "0.1.0b0"
+version = "0.2.0"
 requires-python = ">=3.12"
 dependencies = [
   "PySide6>=6.11,<6.12",
@@ -204,7 +204,7 @@ backups/
 ```txt
 chitchat
 ├─ UI Layer: PySide6 pages/widgets
-├─ ViewModel Layer: UI state and form validation
+├─ ViewModel Layer: UI state and form validation (DD-11: MVP v0.1에서 의도적 간소화, v0.2 도입)
 ├─ Service Layer: use cases, transactions, orchestration
 ├─ Domain Layer: typed profile contracts, prompt assembly, lore matching
 ├─ Provider Layer: Gemini/OpenRouter/LM Studio adapters
@@ -215,7 +215,14 @@ chitchat
 ### 5.1 Dependency Rule
 
 ```txt
+# 정규 규칙 (v0.2+):
 ui -> viewmodels -> services -> repositories/domain/providers/secrets
+
+# MVP v0.1 허용 (DD-11):
+ui -> services -> repositories/domain/providers/secrets
+# ViewModel 계층은 의도적으로 생략. UI 페이지가 Service를 직접 호출한다.
+# AsyncSignalBridge가 비동기 결과의 thread-safe 전달을 담당한다.
+
 domain -> no dependency on ui/db/provider implementation
 providers -> domain contracts + httpx/google-genai only
 db -> SQLAlchemy only
@@ -230,13 +237,36 @@ main.py
 → load Settings
 → ensure app data directory
 → create SQLite engine
-→ run Alembic migrations
+→ run_migrations(engine)    # v0.2.0: Alembic 단독으로 스키마 생성/업그레이드 일원화
 → create RepositoryRegistry
 → create ProviderRegistry
 → create ServiceRegistry
 → create MainWindow
 → show MainWindow
 ```
+
+### 5.3 Vibe Fill Architecture (v0.2.0)
+
+Vibe Fill은 사용자의 짧은 바이브 텍스트를 바탕으로 AI가 구체적인 롤플레이 데이터를 자동 생성하는 시스템이다.
+
+```txt
+[Input]
+- Vibe Text (사용자 입력)
+- Context: Selected AI Personas (선택)
+- Context: Selected Lorebooks (선택)
+- Context: Chained Prompts (청크 연쇄용)
+
+[Processing: VibeFillService]
+Phase 1: AI Persona Generation (14 fields)
+Phase 2: Lorebook Generation (Array of entries, duplicates prevented)
+Phase 3: Worldbook Generation (Chunked by 10 categories, chained contexts)
+
+[Output]
+- Preview Checklist → User Selection → Append to DB
+```
+
+*   **설계 원칙**: 기존 데이터를 덮어쓰지 않고 항상 Append 방식으로 동작한다.
+*   **토큰 안전성**: Phase 3 Worldbook 생성 시 10개 카테고리를 4개의 청크로 분할하여 LLM을 연쇄 호출한다. 이전 청크의 결과 제목을 다음 청크의 컨텍스트로 주입하여 전체 세계관의 일관성을 유지한다.
 
 ---
 
@@ -263,6 +293,7 @@ chitchat/
 │       ├── __init__.py
 │       ├── main.py
 │       ├── app.py
+│       ├── logging_config.py
 │       ├── config/
 │       │   ├── paths.py
 │       │   └── settings.py
@@ -270,7 +301,7 @@ chitchat/
 │       │   ├── engine.py
 │       │   ├── models.py
 │       │   ├── repositories.py
-│       │   └── migrations.py
+│       │   └── migrations.py           # Alembic 인프라 (MVP v0.1에서 미호출)
 │       ├── domain/
 │       │   ├── ids.py
 │       │   ├── profiles.py
@@ -290,39 +321,42 @@ chitchat/
 │       │   └── key_store.py
 │       ├── services/
 │       │   ├── provider_service.py
-│       │   ├── profile_service.py
-│       │   ├── model_service.py
+│       │   ├── profile_service.py      # UserPersona/AIPersona/Lorebook/Worldbook/ModelProfile/ChatProfile CRUD
 │       │   ├── prompt_service.py
 │       │   └── chat_service.py
-│       ├── ui/
-│       │   ├── main_window.py
-│       │   ├── navigation.py
-│       │   ├── pages/
-│       │   │   ├── chat_page.py
-│       │   │   ├── provider_page.py
-│       │   │   ├── model_profile_page.py
-│       │   │   ├── persona_page.py
-│       │   │   ├── ai_persona_page.py
-│       │   │   ├── lorebook_page.py
-│       │   │   ├── worldbook_page.py
-│       │   │   ├── chat_profile_page.py
-│       │   │   └── prompt_order_page.py
-│       │   ├── widgets/
-│       │   │   ├── model_parameter_form.py
-│       │   │   ├── prompt_order_list.py
-│       │   │   ├── chat_message_view.py
-│       │   │   └── token_budget_bar.py
-│       │   └── viewmodels/
-│       │       ├── chat_vm.py
-│       │       ├── provider_vm.py
-│       │       └── profile_vm.py
-│       └── logging_config.py
+│       └── ui/
+│           ├── main_window.py
+│           ├── navigation.py
+│           ├── theme.py
+│           ├── async_bridge.py          # asyncio ↔ Qt Signal 브리지 (DD-09)
+│           ├── pages/
+│           │   ├── chat_page.py
+│           │   ├── provider_page.py
+│           │   ├── model_profile_page.py
+│           │   ├── persona_page.py      # UserPersona + AIPersona 통합
+│           │   ├── lorebook_page.py
+│           │   ├── worldbook_page.py
+│           │   ├── chat_profile_page.py
+│           │   └── prompt_order_page.py
+│           ├── widgets/
+│           │   ├── chat_message_view.py
+│           │   ├── token_budget_bar.py
+│           │   └── entity_picker_dialog.py
+│           └── viewmodels/              # DD-11: MVP v0.1에서 의도적 생략, v0.2 도입
+│               └── __init__.py
 └── tests/
     ├── test_prompt_assembler.py
     ├── test_lorebook_matcher.py
     ├── test_provider_capability_mapper.py
+    ├── test_provider_connection.py
+    ├── test_model_list.py
     ├── test_profile_validation.py
-    └── test_secret_storage_policy.py
+    ├── test_profile_crud_service.py
+    ├── test_secret_storage_policy.py
+    ├── test_repository_crud.py
+    ├── test_session_state_machine.py
+    ├── test_first_run_smoke.py
+    └── test_e2e_acceptance.py
 ```
 
 ---
@@ -657,16 +691,26 @@ Unique index: `(provider_profile_id, model_id)`.
 
 #### `ai_personas`
 
-| Column | Type | Constraint |
-|---|---|---|
-| id | TEXT | PK |
-| name | TEXT | NOT NULL, unique |
-| role_name | TEXT | NOT NULL |
-| personality | TEXT | NOT NULL |
-| speaking_style | TEXT | NOT NULL |
-| goals | TEXT | NOT NULL |
-| restrictions | TEXT | NOT NULL |
-| enabled | INTEGER | NOT NULL |
+[v0.2.0] Vibe Fill Phase 1에서 14개 필드로 확장됨 (기존 6개 + 신규 8개).
+
+| Column | Type | Constraint | 설명 |
+|---|---|---|---|
+| id | TEXT | PK | |
+| name | TEXT | NOT NULL, unique | 캐릭터 이름 |
+| role_name | TEXT | NOT NULL | 직업/역할 |
+| personality | TEXT | NOT NULL | 성격 기술 |
+| speaking_style | TEXT | NOT NULL | 말투 기술 |
+| goals | TEXT | NOT NULL | 추구할 목표 |
+| restrictions | TEXT | NOT NULL | 행동 제한 |
+| enabled | INTEGER | NOT NULL | 활성 여부 |
+| age | TEXT | NOT NULL, default="" | 나이 또는 나이대 |
+| gender | TEXT | NOT NULL, default="" | 성별 |
+| appearance | TEXT | NOT NULL, default="" | 외모 묘사 |
+| backstory | TEXT | NOT NULL, default="" | 배경 스토리 |
+| relationships | TEXT | NOT NULL, default="" | 인간관계 |
+| skills | TEXT | NOT NULL, default="" | 특기/능력 |
+| interests | TEXT | NOT NULL, default="" | 취미/관심사 |
+| weaknesses | TEXT | NOT NULL, default="" | 약점/두려움 |
 
 #### `lorebooks`, `lore_entries`, `worldbooks`, `world_entries`
 
@@ -868,10 +912,10 @@ TOKEN_ESTIMATE_CHARS_PER_TOKEN = 4
   {"kind": "system_base", "enabled": true, "order_index": 0},
   {"kind": "ai_persona", "enabled": true, "order_index": 10},
   {"kind": "worldbook", "enabled": true, "order_index": 20},
-  {"kind": "lorebook_matches", "enabled": true, "order_index": 30},
+  {"kind": "lorebook", "enabled": true, "order_index": 30},
   {"kind": "user_persona", "enabled": true, "order_index": 40},
   {"kind": "chat_history", "enabled": true, "order_index": 50},
-  {"kind": "current_user_message", "enabled": true, "order_index": 60}
+  {"kind": "current_input", "enabled": true, "order_index": 60}
 ]
 ```
 
@@ -1195,10 +1239,10 @@ Rules:
     {"kind": "system_base", "enabled": true, "order_index": 0},
     {"kind": "ai_persona", "enabled": true, "order_index": 10},
     {"kind": "worldbook", "enabled": true, "order_index": 20},
-    {"kind": "lorebook_matches", "enabled": true, "order_index": 30},
+    {"kind": "lorebook", "enabled": true, "order_index": 30},
     {"kind": "user_persona", "enabled": true, "order_index": 40},
     {"kind": "chat_history", "enabled": true, "order_index": 50},
-    {"kind": "current_user_message", "enabled": true, "order_index": 60}
+    {"kind": "current_input", "enabled": true, "order_index": 60}
   ]
 }
 ```

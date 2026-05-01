@@ -1,5 +1,5 @@
 # src/chitchat/ui/main_window.py
-# [v0.1.0b0] 메인 윈도우 + QStackedWidget 페이지 라우팅
+# [v0.3.0] 메인 윈도우 + QStackedWidget 페이지 라우팅
 #
 # designs.md §3에서 정의된 레이아웃을 구현한다.
 # 좌측: NavigationSidebar (220px 고정)
@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from chitchat.i18n import tr
 from chitchat.ui.navigation import NavigationSidebar
 from chitchat.ui.theme import COLORS, SPACING
 
@@ -72,7 +73,7 @@ class MainWindow(QMainWindow):
         # 상태바
         status_bar = QStatusBar()
         self.setStatusBar(status_bar)
-        status_bar.showMessage("chitchat v0.1.0b0 — 준비 완료")
+        status_bar.showMessage(tr("app.status_ready"))
 
     def register_page(self, page_id: str, widget: QWidget) -> None:
         """페이지를 등록한다.

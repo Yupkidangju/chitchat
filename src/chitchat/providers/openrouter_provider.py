@@ -176,7 +176,7 @@ class OpenRouterProvider:
         headers = self._get_headers(api_key)
 
         # OpenAI-compatible 요청 body 구성
-        body: dict = {
+        body: dict[str, object] = {
             "model": request.model_id,
             "messages": [
                 {"role": m.role, "content": m.content}

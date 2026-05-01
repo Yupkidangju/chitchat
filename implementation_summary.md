@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 문서 버전: `v0.1 BETA`
-- 상위 문서: `spec.md v0.1 BETA`
+- 문서 버전: `v0.3.0`
+- 상위 문서: `spec.md v0.3.0`
 - 목적: 구현자가 이 문서를 읽고 첫 코드를 열었을 때, 어디서 시작하고 어떤 순서로 무엇을 만들지 바로 판단할 수 있어야 한다.
 
 ---
@@ -16,10 +16,10 @@ main.py
 → load Settings (pydantic-settings, 환경변수 + .env)
 → ensure app data directory (OS별 분기: Windows %APPDATA%, macOS ~/Library, Linux XDG_DATA_HOME)
 → create SQLite engine (SQLAlchemy 2.0, sqlite:///chitchat.sqlite3)
-→ run Alembic migrations (alembic upgrade head, 자동 실행)
+→ run_migrations(engine) (v0.2.0: Alembic 단독으로 스키마 생성/업그레이드 일원화)
 → create RepositoryRegistry (모든 테이블 Repository 단일 진입점)
 → create ProviderRegistry (Gemini/OpenRouter/LMStudio adapter 등록)
-→ create ServiceRegistry (ProviderService, ProfileService, ModelService, PromptService, ChatService)
+→ create ServiceRegistry (ProviderService, ProfileService, ModelService, PromptService, ChatService, VibeFillService)
 → create MainWindow (QMainWindow, sidebar + status bar + QStackedWidget)
 → show MainWindow
 → QApplication.exec()
@@ -41,14 +41,14 @@ MainWindow closeEvent
 | 시스템 | 계층 | 책임 | 의존 |
 |---|---|---|---|
 | Config | config/ | OS별 app data 경로, Settings 로딩 | pydantic-settings |
-| Database | db/ | SQLAlchemy ORM 모델, Repository CRUD, Alembic 마이그레이션 | SQLAlchemy, Alembic |
+| Database | db/ | SQLAlchemy ORM 모델, Repository CRUD, Alembic 마이그레이션 인프라 | SQLAlchemy, Alembic |
 | Domain | domain/ | 타입 계약(Pydantic 모델), ID 생성, 프롬프트 조립, 로어북 매칭 | pydantic |
 | Providers | providers/ | ChatProvider Protocol 구현 3종, CapabilityMapper | httpx, google-genai |
 | Secrets | secrets/ | OS keyring 래퍼, secret_ref 기반 CRUD | keyring |
 | Services | services/ | 유스케이스 오케스트레이션, 트랜잭션 관리 | repositories, domain, providers, secrets |
-| ViewModels | ui/viewmodels/ | UI 상태 관리, 폼 검증, Signal 발행 | services, domain |
-| UI Pages | ui/pages/ | PySide6 위젯, 사용자 상호작용 | viewmodels |
-| UI Widgets | ui/widgets/ | 재사용 위젯: 파라미터 폼, 프롬프트 순서 리스트, 메시지 뷰, 토큰 바 | viewmodels, domain |
+| ViewModels | ui/viewmodels/ | DD-11: MVP v0.1에서 의도적 생략. v0.2 도입 예정 | — |
+| UI Pages | ui/pages/ | PySide6 위젯, 사용자 상호작용 | services (DD-11: 직접 호출), AsyncSignalBridge |
+| UI Widgets | ui/widgets/ | 재사용 위젯: 메시지 뷰, 토큰 바, 엔티티 선택 다이얼로그 | domain |
 
 ---
 
@@ -79,15 +79,18 @@ class BaseRepository(Generic[T]):
 
 ### 3.3 ViewModel → Service 경계
 
-- ViewModel은 Service의 공개 메서드만 호출한다.
-- ViewModel은 Provider adapter를 직접 호출하지 않는다.
-- ViewModel은 Qt Signal로 UI에 상태 변경을 알린다.
+> **DD-11 (MVP v0.1):** ViewModel 계층은 의도적으로 생략되었다. v0.2에서 도입 예정.
 
-### 3.4 UI → ViewModel 경계
+- ~~ViewModel은 Service의 공개 메서드만 호출한다.~~ → MVP에서는 UI Pages가 Service를 직접 호출.
+- ~~ViewModel은 Provider adapter를 직접 호출하지 않는다.~~ → 유지 (UI도 Provider를 직접 호출하지 않음).
+- ~~ViewModel은 Qt Signal로 UI에 상태 변경을 알린다.~~ → MVP에서는 AsyncSignalBridge가 비동기 결과를 Signal로 전달.
 
-- UI 위젯은 ViewModel의 Signal을 connect한다.
-- UI 위젯은 ViewModel의 공개 메서드(slot)를 호출한다.
-- UI 위젯은 Service/Repository/Provider를 import하지 않는다.
+### 3.4 UI → Service 경계 (MVP v0.1, DD-11)
+
+- UI 위젯은 Service의 공개 메서드를 직접 호출한다 (MVP 허용).
+- 비동기 작업은 AsyncSignalBridge를 통해 worker 스레드에서 실행하고, Signal로 결과를 메인 스레드에 전달한다.
+- UI 위젯은 Repository/Provider를 직접 import하지 않는다 (Service를 통해서만 접근).
+- v0.2에서 ViewModel 계층이 도입되면, UI → ViewModel → Service 의존 구조로 전환한다.
 
 ---
 
@@ -120,6 +123,7 @@ class BaseRepository(Generic[T]):
 | `prompt_assembler.py` | `assemble_prompt()`: PromptOrder에 따라 블록 조합, 토큰 예측, 히스토리 잘라내기 |
 | `lorebook_matcher.py` | `match_lore_entries()`: 최근 8개 메시지 키워드 매칭, 우선순위 정렬, 토큰 예산 제한 |
 | `chat_session.py` | `ChatSessionData`, `ChatMessageData` 타입, 상태 전이 검증 함수 |
+| `vibe_fill.py` | Phase 1~3 바이브 생성 도메인 (14개 필드 Persona, 다중 Lorebook, 10개 카테고리 Worldbook 프롬프트 및 응답 파싱) |
 
 ### 4.4 providers/
 
@@ -143,10 +147,10 @@ class BaseRepository(Generic[T]):
 | 파일 | 책임 |
 |---|---|
 | `provider_service.py` | Provider CRUD, 연결 테스트, 모델 목록 패치, model_cache 갱신 |
-| `profile_service.py` | UserPersona/AIPersona/Lorebook/Worldbook/ChatProfile CRUD |
-| `model_service.py` | ModelProfile CRUD, capability 기반 유효성 검증 |
+| `profile_service.py` | UserPersona/AIPersona/Lorebook/Worldbook/ModelProfile/ChatProfile CRUD, PromptOrder 갱신 |
 | `prompt_service.py` | 프롬프트 조립 오케스트레이션, PromptSnapshot 생성 |
 | `chat_service.py` | ChatSession CRUD, 상태 전이, 스트리밍 실행/취소, 메시지 저장 |
+| `vibe_fill_service.py` | Vibe Fill (AI Persona, Lorebook, Worldbook) 연쇄 생성, 청크 분할 LLM 호출 및 진행률 콜백 관리 |
 
 ### 4.7 ui/
 
@@ -207,6 +211,12 @@ def new_id(prefix: str) -> str:
 - prefix는 반드시 언더스코어로 끝난다: `cp_`, `prov_`, `le_` 등.
 - ULID는 시간 순 정렬이 가능하다.
 
+### 5.5 Vibe Fill (AI Generation) 알고리즘 (v0.2.0)
+
+**Phase 1 (Persona)**: 바이브 문자열 → `VIBE_FILL_SYSTEM_PROMPT` 주입 → JSON 14개 필드 파싱 → 기존/신규 AI Persona에 할당.
+**Phase 2 (Lorebook)**: 바이브 + Persona → `LORE_FILL_SYSTEM_PROMPT` 주입 → JSON 배열 파싱 → 중복 키/제목 검증 → 임시 목록 생성 → UI에서 체크 항목만 Append DB.
+**Phase 3 (Worldbook)**: 바이브 + Persona(2) + Lorebook(2) → 10개 카테고리(역사, 지리 등)를 4그룹(청크)으로 분할 → `WORLD_FILL_SYSTEM_PROMPT`에 이전 청크의 생성 제목 목록 주입 → 연쇄 호출 → 응답 병합 → UI에서 선택 Append.
+
 ---
 
 ## 6. 동결된 공식 요약
@@ -263,9 +273,28 @@ Phase 5: Chat Streaming + Inspector          ✅ 완료
 Phase 6: 패키징 + 수용 테스트                ✅ 완료
 정합성 감사 Remediation                       ✅ 완료 (7 버그 수정)
 MVP Hardening                                  ✅ 완료 (#1~#6 전체 조치)
+v0.1.1 UI 개선                                 ✅ 완료 (태그 선택, placeholder)
+v0.1.2 전수조사 감사                           ✅ 완료 (스트리밍 실시간, 프로필 선택 등)
+v0.1.3 잔여 감사 수정                          ✅ 완료 (아래 §8.1 참조)
+v0.2.0 Vibe Fill Phase 1 (Persona)             ✅ 완료 (14필드 확장)
+v0.2.0 Vibe Fill Phase 2 (Lorebook)            ✅ 완료 (복수 엔트리)
+v0.2.0 Vibe Fill Phase 3 (Worldbook)           ✅ 완료 (청크 연쇄)
+v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 언어)
 ```
 
 각 Phase 완료 조건은 `audit_roadmap.md`에서 정의한다.
+
+### 8.1 잔여 작업 목록 (v0.1.3) — 전부 완료
+
+| 우선순위 | 항목 | 관련 문서 | 상태 |
+|:---:|---|---|:---:|
+| 🔴 높음 | PromptOrderPage 신규 구현 | spec §12.2, designs §10.9, DD-05 | ✅ 완료 |
+| 🔴 높음 | ModelProfilePage 파라미터 동적 가시성 | spec §11.1, designs §10.3, DD-13 | ✅ 완료 |
+| 🟡 중간 | PromptSnapshot 구조 보완 | spec §12.6, designs §9.9 | ✅ 완료 |
+| 🟡 중간 | Provider Setup State 시각화 | spec §13.1, designs §10.2 | ✅ 완료 |
+| 🟡 중간 | ModelProfile Save 검증 강화 | spec §11.2, designs §10.3, DD-13 | ✅ 완료 |
+| ⚪ 낮음 | ViewModel 계층 점진적 도입 | DD-11 | 📋 문서화 (v0.2) |
+| ⚪ 낮음 | 설정 페이지 실제 구현 | DD-12 | 📋 문서화 (v0.2) |
 
 ---
 
@@ -273,6 +302,6 @@ MVP Hardening                                  ✅ 완료 (#1~#6 전체 조치)
 
 1. Provider 추가 시 `ChatProvider` Protocol을 구현하고 `ProviderRegistry`에 등록한다. Service/UI는 수정하지 않는다.
 2. 새 PromptBlockKind 추가 시 `PromptBlockKind` Literal, `prompt_assembler.py`, `designs.md` PromptOrder 섹션을 동시에 갱신한다.
-3. DB 스키마 변경 시 반드시 Alembic 마이그레이션을 생성한다. 수동 DDL 금지.
+3. DB 스키마 변경 시: (a) v0.2.0부터 `create_all()` 대신 Alembic 단독 정책을 사용한다. (b) 스키마 변경이 필요하면 `alembic revision --autogenerate`로 새 리비전을 생성한다. (c) `run_migrations()`가 앱 시작 시 자동으로 호출되어 신규/기존/partial DB를 모두 처리한다.
 4. 디자인 토큰 변경 시 `ui/theme.py`만 수정한다. 개별 위젯 파일에 하드코딩된 색상은 금지.
 5. `spec.md`와 구현 코드가 충돌하면 코드 생성을 멈추고 문서를 먼저 갱신한다.

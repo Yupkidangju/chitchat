@@ -379,6 +379,16 @@ class ChatSessionRepository(BaseRepository):
             session.refresh(merged)
             return merged
 
+    def delete_by_id(self, id_: str) -> bool:
+        """[v0.1.2] ID로 채팅 세션을 삭제한다."""
+        with self._get_session() as session:
+            row = session.get(ChatSessionRow, id_)
+            if row is None:
+                return False
+            session.delete(row)
+            session.commit()
+            return True
+
 
 class ChatMessageRepository(BaseRepository):
     """채팅 메시지 Repository."""
@@ -400,6 +410,23 @@ class ChatMessageRepository(BaseRepository):
             session.commit()
             session.refresh(row)
             return row
+
+    def delete_by_session(self, session_id: str) -> int:
+        """[v0.1.2] 특정 세션의 모든 메시지를 삭제한다. 삭제된 행 수를 반환한다."""
+        with self._get_session() as session:
+            rows = (
+                session.execute(
+                    select(ChatMessageRow)
+                    .where(ChatMessageRow.session_id == session_id)
+                )
+                .scalars()
+                .all()
+            )
+            count = len(rows)
+            for row in rows:
+                session.delete(row)
+            session.commit()
+            return count
 
 
 class RepositoryRegistry:

@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # chitchat.spec
-# [v0.1.0b0] PyInstaller 빌드 스펙
+# [v0.3.0] PyInstaller 빌드 스펙
 #
 # `pyinstaller chitchat.spec` 으로 빌드한다.
 # one-folder 모드. PySide6 플러그인 및 alembic 데이터 포함.
@@ -19,6 +19,8 @@ a = Analysis(
         # Alembic 설정 및 마이그레이션 파일
         (str(root / 'alembic.ini'), '.'),
         (str(root / 'alembic'), 'alembic'),
+        # [v0.3.0] i18n 번역 사전 파일
+        (str(root / 'src' / 'chitchat' / 'i18n' / 'locales'), 'chitchat/i18n/locales'),
     ],
     hiddenimports=[
         # PySide6 필수 플러그인

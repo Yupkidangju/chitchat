@@ -1,8 +1,8 @@
 # src/chitchat/ui/navigation.py
-# [v0.1.0b0] 사이드바 네비게이션 위젯
+# [v0.3.0] 사이드바 네비게이션 위젯
 #
 # designs.md §3.1에서 정의된 사이드바를 구현한다.
-# 9개 네비게이션 항목: 5개 설정 + 1개 채팅 + 3개 데이터 관리.
+# [v0.3.0] i18n 적용 — 네비게이션 라벨을 tr()로 변환.
 # 현재 선택된 항목은 accent_primary 배경으로 강조된다.
 
 from __future__ import annotations
@@ -16,20 +16,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from chitchat.i18n import tr
 from chitchat.ui.theme import COLORS, SPACING, TYPOGRAPHY
 
 
-# 네비게이션 항목 정의 (순서, ID, 표시 이름, 아이콘 이모지)
+# 네비게이션 항목 정의 (page_id, 번역키, 내부식별자)
 NAV_ITEMS: list[tuple[str, str, str]] = [
-    ("chat", "💬 채팅", "chat"),
-    ("providers", "🔌 Provider", "providers"),
-    ("model_profiles", "⚙️ 모델 프로필", "model_profiles"),
-    ("user_personas", "👤 사용자 페르소나", "user_personas"),
-    ("ai_personas", "🤖 AI 페르소나", "ai_personas"),
-    ("lorebooks", "📖 로어북", "lorebooks"),
-    ("worldbooks", "🌍 월드북", "worldbooks"),
-    ("chat_profiles", "🎯 채팅 프로필", "chat_profiles"),
-    ("settings", "⚡ 설정", "settings"),
+    ("chat", "nav.chat", "chat"),
+    ("providers", "nav.providers", "providers"),
+    ("model_profiles", "nav.model_profiles", "model_profiles"),
+    ("user_personas", "nav.user_personas", "user_personas"),
+    ("ai_personas", "nav.ai_personas", "ai_personas"),
+    ("lorebooks", "nav.lorebooks", "lorebooks"),
+    ("worldbooks", "nav.worldbooks", "worldbooks"),
+    ("chat_profiles", "nav.chat_profiles", "chat_profiles"),
+    ("prompt_order", "nav.prompt_order", "prompt_order"),
+    ("settings", "nav.settings", "settings"),
 ]
 
 
@@ -98,8 +100,8 @@ class NavigationSidebar(QWidget):
             }}
         """)
 
-        for page_id, display_name, _ in NAV_ITEMS:
-            item = QListWidgetItem(display_name)
+        for page_id, tr_key, _ in NAV_ITEMS:
+            item = QListWidgetItem(tr(tr_key))
             item.setData(Qt.ItemDataRole.UserRole, page_id)
             self._list.addItem(item)
 
