@@ -9,6 +9,24 @@
 
 ## [미출시]
 
+### 추가됨 (v1.0.0: VibeSmith 동적 페르소나 + Web 전환)
+
+- **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
+- **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조
+  - Fixed Canon, Core Dynamic Model, Social & Relationship Model, Adaptive Behavior Rules
+  - Habits & Behavioral Texture, Emotional Dynamics, Memory Update Policy
+  - Response Generation Rule, Coherence Check Report
+- **동적 상태 엔진**: 매 AI 응답 후 기억/관계/감정/사회적 위치를 자동 갱신
+- **원본 캐릭터 MD 문서**: 생성 시 원본 Markdown 페르소나 카드 저장 (불변)
+- **SQLite+ZSTD 동적 상태 저장**: 동적 요소를 압축하여 별도 테이블에 영속화
+- **프롬프트 어셈블러 v2**: 동적 상태 블록을 프롬프트 조립 시 자동 주입
+- **WebSocket 스트리밍 채팅**: FastAPI WebSocket을 통한 실시간 AI 응답 수신
+
+### 제거됨 (v1.0.0)
+
+- PySide6 UI 레이어 전체 (pages, widgets, theme, navigation, main_window)
+- PyInstaller 빌드 시스템 (chitchat.spec, scripts/build.sh)
+
 ### 추가됨 (v0.3.0: i18n + 사용자 설정 시스템)
 
 - **i18n 국제화 시스템**: JSON 기반 경량 번역 엔진

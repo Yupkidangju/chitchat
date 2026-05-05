@@ -1,8 +1,8 @@
-# chitchat Implementation Spec (v0.1 BETA)
+# chitchat Implementation Spec (v1.0)
 
 ## 0. Global Documentation Rules
 
-- 문서 버전: `v0.1 BETA`
+- 문서 버전: `v1.0`
 - 프로젝트명: `chitchat`
 - 문서 상태: Initial Specification & Implementation Entry
 - 문서 우선순위: 코드보다 문서가 우선이다.
@@ -48,20 +48,24 @@
 | 항목 | 값 |
 |---|---|
 | Project Name | `chitchat` |
-| Version | `v0.1 BETA` |
+| Version | `v1.0` |
 | Target Tool | Google Antigravity |
-| Target Platform | Cross-platform Desktop: Windows 11+, macOS 14+, Ubuntu 24.04+ |
-| Language | Python |
+| Target Platform | Cross-platform Web: 브라우저 기반 (localhost) |
+| Language | Python (Backend) + HTML/CSS/JS (Frontend) |
 | Runtime Pin | Python `3.12+` (권장 3.13, 최소 3.12) |
-| UI Runtime | PySide6 / Qt Widgets |
+| Backend Framework | FastAPI + Uvicorn |
+| Frontend | Vanilla HTML/CSS/JS SPA |
+| Realtime | WebSocket (스트리밍 채팅) |
 | Storage | SQLite local file |
+| Compression | ZSTD (동적 상태 blob) |
 | Secrets | OS keyring via `keyring` |
 | Supported Providers | Gemini, OpenRouter, LM Studio |
+| Persona System | VibeSmith 9-Section Dynamic Persona |
 | License posture | RisuAI code, UI, assets, text, schema를 복제하지 않는 독립 구현 |
 
 ### 1.1 One-Sentence Product Definition
 
-`chitchat`은 Provider, 모델, 모델 파라미터, 사용자 페르소나, AI 페르소나, 로어북, 세계관, 프롬프트 조합 순서를 저장하고 조합해 대화 세션을 실행하는 Python 크로스플랫폼 데스크톱 AI 채팅 앱이다.
+`chitchat`은 VibeSmith 스타일의 동적 페르소나 시스템을 통해 살아있는 캐릭터를 생성하고, 기억·관계·감정·사회적 위치가 대화에 따라 동적으로 변화하는 AI 롤플레이 채팅 플랫폼이다. Python FastAPI 백엔드와 HTML/CSS/JS 웹 프론트엔드로 구성된다.
 
 ---
 
@@ -202,28 +206,26 @@ backups/
 ## 5. Architecture
 
 ```txt
-chitchat
-├─ UI Layer: PySide6 pages/widgets
-├─ ViewModel Layer: UI state and form validation (DD-11: MVP v0.1에서 의도적 간소화, v0.2 도입)
+chitchat v1.0
+├─ API Layer: FastAPI REST + WebSocket endpoints
 ├─ Service Layer: use cases, transactions, orchestration
-├─ Domain Layer: typed profile contracts, prompt assembly, lore matching
+├─ Domain Layer:
+│  ├─ VibeSmith Persona (9-section dynamic persona cards)
+│  ├─ DynamicStateEngine (기억/관계/감정/이벤트 실시간 갱신)
+│  ├─ PromptAssembler v2 (동적 상태 블록 주입)
+│  └─ LorebookMatcher (키워드 매칭)
 ├─ Provider Layer: Gemini/OpenRouter/LM Studio adapters
-├─ Persistence Layer: SQLite + SQLAlchemy repositories
-└─ Secret Layer: keyring wrapper
+├─ Persistence Layer: SQLite + SQLAlchemy + ZSTD (동적 상태)
+├─ Secret Layer: keyring wrapper
+└─ Frontend: HTML/CSS/JS SPA (별도 static serve)
 ```
 
 ### 5.1 Dependency Rule
 
 ```txt
-# 정규 규칙 (v0.2+):
-ui -> viewmodels -> services -> repositories/domain/providers/secrets
+frontend(JS) -> API(FastAPI) -> services -> repositories/domain/providers/secrets
 
-# MVP v0.1 허용 (DD-11):
-ui -> services -> repositories/domain/providers/secrets
-# ViewModel 계층은 의도적으로 생략. UI 페이지가 Service를 직접 호출한다.
-# AsyncSignalBridge가 비동기 결과의 thread-safe 전달을 담당한다.
-
-domain -> no dependency on ui/db/provider implementation
+domain -> no dependency on api/db/provider implementation
 providers -> domain contracts + httpx/google-genai only
 db -> SQLAlchemy only
 secrets -> keyring only
@@ -233,40 +235,45 @@ secrets -> keyring only
 
 ```txt
 main.py
-→ create_app()
-→ load Settings
+→ create FastAPI app
+→ load Settings / UserPreferences
 → ensure app data directory
 → create SQLite engine
-→ run_migrations(engine)    # v0.2.0: Alembic 단독으로 스키마 생성/업그레이드 일원화
+→ run_migrations(engine)
 → create RepositoryRegistry
 → create ProviderRegistry
 → create ServiceRegistry
-→ create MainWindow
-→ show MainWindow
+→ mount static files (frontend/)
+→ uvicorn.run(app, host="127.0.0.1", port=8000)
 ```
 
-### 5.3 Vibe Fill Architecture (v0.2.0)
+### 5.3 VibeSmith Persona Architecture (v1.0)
 
-Vibe Fill은 사용자의 짧은 바이브 텍스트를 바탕으로 AI가 구체적인 롤플레이 데이터를 자동 생성하는 시스템이다.
+VibeSmith는 짧은 바이브 입력에서 9섹션 동적 페르소나 카드를 생성하고,
+대화 진행에 따라 동적 상태를 실시간으로 갱신하는 시스템이다.
 
 ```txt
-[Input]
-- Vibe Text (사용자 입력)
-- Context: Selected AI Personas (선택)
-- Context: Selected Lorebooks (선택)
-- Context: Chained Prompts (청크 연쇄용)
+[Persona Generation Pipeline]
+1. User Input (vibe text)
+2. Input Parsing (fixed facts + vibe traits + implied constraints)
+3. Fixed Canon Autofill (이름, 나이, 외모, 생활, 기술)
+4. Dynamic Persona Autofill (동기, 공포, 자기개념, 방어전략)
+5. Relationship State Model (9개 상태 변수)
+6. Behavioral Texture (말투, 바디랭귀지, 일상 질감)
+7. Coherence Check (10영역 일관성 검증)
+8. Markdown Persona Card 출력 (원본 MD 문서)
+9. DB 저장 (메타 + 검색 인덱스)
 
-[Processing: VibeFillService]
-Phase 1: AI Persona Generation (14 fields)
-Phase 2: Lorebook Generation (Array of entries, duplicates prevented)
-Phase 3: Worldbook Generation (Chunked by 10 categories, chained contexts)
-
-[Output]
-- Preview Checklist → User Selection → Append to DB
+[Dynamic State Engine — 매 턴 실행]
+1. 대화 분석: 기억 저장 트리거 감지 (약속, 칭찬, 경계 침범, 갈등 회복 등)
+2. AI 판단: 관계 변수 변경 여부 평가 (trust, familiarity, emotional_reliance 등)
+3. 기억 형성: MemoryEntry 생성 + 감정 영향 기록
+4. 상태 영속화: ZSTD 압축 → SQLite dynamic_states 테이블
+5. 프롬프트 반영: 다음 턴 프롬프트 조립 시 현재 동적 상태 주입
 ```
 
-*   **설계 원칙**: 기존 데이터를 덮어쓰지 않고 항상 Append 방식으로 동작한다.
-*   **토큰 안전성**: Phase 3 Worldbook 생성 시 10개 카테고리를 4개의 청크로 분할하여 LLM을 연쇄 호출한다. 이전 청크의 결과 제목을 다음 청크의 컨텍스트로 주입하여 전체 세계관의 일관성을 유지한다.
+*   **원본 불변 원칙**: 생성 시 만들어진 MD 페르소나 문서(Fixed Canon 등)는 불변이다. 모든 변화는 dynamic_states 테이블에만 기록된다.
+*   **ZSTD 압축**: 동적 상태 JSON blob은 zstandard로 압축하여 저장한다. 평균 3~5x 압축률.
 
 ---
 

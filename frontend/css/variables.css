@@ -1,0 +1,54 @@
+/* frontend/css/variables.css */
+/* [v1.0.0] 디자인 토큰 — Neo-Brutal Desktop Workspace 테마 웹 전환 */
+
+:root {
+  /* 색상 팔레트 */
+  --bg-primary: #1a1a2e;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #0f3460;
+  --bg-card: #1e2a4a;
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #a0a0b0;
+  --text-muted: #6b6b80;
+
+  --accent-primary: #e94560;
+  --accent-secondary: #533483;
+  --accent-success: #00b894;
+  --accent-warning: #fdcb6e;
+  --accent-danger: #ff6b6b;
+  --accent-info: #74b9ff;
+
+  --border: #2d2d44;
+  --border-strong: #e94560;
+
+  /* 타이포그래피 */
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-md: 15px;
+  --font-size-lg: 18px;
+  --font-size-xl: 24px;
+  --font-size-xxl: 32px;
+
+  /* 간격 */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+
+  /* 테두리 */
+  --border-width: 2px;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+
+  /* 그림자 */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  /* 트랜지션 */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
