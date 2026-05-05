@@ -1,9 +1,13 @@
 # src/chitchat/domain/prompt_assembler.py
-# [v0.1.0b0] 프롬프트 조립 엔진
+# [v1.0.0] 프롬프트 조립 엔진 v2
+#
+# [v0.1.0b0 → v1.0.0 변경사항]
+# - dynamic_state_text 파라미터 추가: 동적 상태 블록을 ai_persona 뒤에 주입
+# - DynamicStateEngine.build_dynamic_prompt_block()의 출력을 받아 프롬프트에 반영
 #
 # spec.md §12.1~§12.3 알고리즘을 구현한다:
 # 1. PromptOrderItem 순서대로 활성 블록을 수집한다.
-# 2. system_base, user_persona, ai_persona, worldbook 블록을 고정 삽입한다.
+# 2. system_base, user_persona, ai_persona, dynamic_state, worldbook 블록을 고정 삽입한다.
 # 3. lorebook 블록은 match_lore_entries()에서 매칭된 것만 삽입한다.
 # 4. chat_history 블록은 남은 예산으로 최신 메시지부터 삽입한다.
 # 5. current_input 블록은 사용자의 현재 입력을 삽입한다.
@@ -29,8 +33,13 @@ def assemble_prompt(
     context_budget: int,
     max_output_tokens: int = 2048,
     history_message_ids: list[str] | None = None,
+    # [v1.0.0] 동적 상태 블록 — DynamicStateEngine.build_dynamic_prompt_block() 출력
+    dynamic_state_text: str | None = None,
 ) -> AssembledPrompt:
     """프롬프트를 조립한다.
+
+    [v1.0.0] dynamic_state_text가 주어지면 ai_persona 블록 뒤에 동적 상태를 주입한다.
+    이를 통해 캐릭터의 현재 관계/기억/감정 상태가 프롬프트에 실시간 반영된다.
 
     Args:
         prompt_order: (PromptBlockKind, enabled) 튜플 리스트 (order_index 정렬됨).
@@ -43,8 +52,8 @@ def assemble_prompt(
         current_input: 현재 사용자 입력.
         context_budget: 컨텍스트 윈도우 토큰 수.
         max_output_tokens: 최대 출력 토큰 수 (예산에서 차감).
-        history_message_ids: 히스토리 메시지 ID 리스트 (history_messages와 동일 순서).
-            None이면 잘린 메시지 ID 추적을 생략한다.
+        history_message_ids: 히스토리 메시지 ID 리스트.
+        dynamic_state_text: 동적 상태 블록 텍스트 (v1.0.0 신규).
 
     Returns:
         조립 완료된 AssembledPrompt.
@@ -69,6 +78,9 @@ def assemble_prompt(
             fixed_blocks.append(PromptBlock.create("user_persona", user_persona_text))
         elif kind == "ai_persona" and ai_persona_text:
             fixed_blocks.append(PromptBlock.create("ai_persona", ai_persona_text))
+            # [v1.0.0] 동적 상태 블록을 ai_persona 뒤에 주입
+            if dynamic_state_text:
+                fixed_blocks.append(PromptBlock.create("ai_persona", dynamic_state_text))
         elif kind == "worldbook":
             fixed_blocks.extend(worldbook_blocks)
         elif kind == "lorebook":

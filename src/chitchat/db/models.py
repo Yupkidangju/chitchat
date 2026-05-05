@@ -265,3 +265,89 @@ class ChatMessageRow(Base):
     created_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_iso)
 
     session: Mapped["ChatSessionRow"] = relationship(back_populates="messages")
+
+
+# ============================================================
+# [v1.0.0] VibeSmith 동적 페르소나 + 동적 상태 테이블
+# ============================================================
+
+class PersonaCardRow(Base):
+    """VibeSmith 9섹션 페르소나 카드 테이블.
+
+    원본 MD 문서의 메타데이터 + 전체 JSON을 저장한다.
+    persona_json에는 PersonaCard 전체가 JSON 문자열로 저장된다.
+    원본 MD 문서는 파일시스템(data/personas/)에 별도 저장된다.
+    """
+    __tablename__ = "persona_cards"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    age: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    gender: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    occupation: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    realism_level: Mapped[str] = mapped_column(Text, nullable=False, default="grounded")
+    core_tension: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    persona_json: Mapped[str] = mapped_column(Text, nullable=False)
+    md_file_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    enabled: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_iso)
+    updated_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_iso)
+
+    # 역참조: 이 페르소나의 동적 상태들
+    dynamic_states: Mapped[list["DynamicStateRow"]] = relationship(
+        back_populates="persona_card", cascade="all, delete-orphan",
+    )
+
+
+class DynamicStateRow(Base):
+    """캐릭터 동적 상태 테이블 (ZSTD 압축 JSON blob).
+
+    하나의 PersonaCard + 하나의 ChatSession에 연결된다.
+    state_blob에는 DynamicCharacterState 전체가 ZSTD 압축된 바이너리로 저장된다.
+    """
+    __tablename__ = "dynamic_states"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    character_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("persona_cards.id"), nullable=False,
+    )
+    session_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("chat_sessions.id"), nullable=False,
+    )
+    state_blob: Mapped[bytes] = mapped_column(nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    turn_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_iso)
+
+    # 관계
+    persona_card: Mapped["PersonaCardRow"] = relationship(back_populates="dynamic_states")
+
+    __table_args__ = (
+        Index("ix_dynamic_states_session", "session_id"),
+        Index("ix_dynamic_states_character", "character_id"),
+    )
+
+
+class MemoryRow(Base):
+    """기억 테이블.
+
+    DynamicStateRow와 연결되어 캐릭터가 대화에서 형성한 기억을 개별 레코드로 저장한다.
+    state_blob 내의 memories 리스트와 동기화된다 (검색/쿼리 최적화용).
+    """
+    __tablename__ = "memories"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    dynamic_state_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("dynamic_states.id"), nullable=False,
+    )
+    trigger_type: Mapped[str] = mapped_column(Text, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    emotional_impact: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    turn_number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_iso)
+
+    __table_args__ = (
+        Index("ix_memories_state", "dynamic_state_id"),
+        Index("ix_memories_trigger", "trigger_type"),
+    )
+

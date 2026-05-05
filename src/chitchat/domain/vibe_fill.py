@@ -1,9 +1,11 @@
 # src/chitchat/domain/vibe_fill.py
-# [v0.2.0] Vibe Fill 프롬프트 템플릿 및 응답 파싱
+# [v1.0.0] Vibe Fill 프롬프트 템플릿 및 응답 파싱
 #
-# Phase 1: 바이브 텍스트 → AI Persona 14개 필드 자동 생성
-# Phase 2: 바이브 텍스트 (+ 캐릭터 컨텍스트) → 로어 엔트리 복수 건 자동 생성
-# Phase 3: 바이브 텍스트 (+ 캐릭터 + 로어북) → 세계관 엔트리 청크 분할 생성
+# [v0.2.0 → v1.0.0 변경사항]
+# - Phase 1: 14필드 정적 AI Persona 생성 → VibeSmith 9섹션 동적 페르소나 생성으로 전면 교체
+# - 삭제 사유: 14필드 플랫 구조에서 9섹션 동적 구조(VibeSmith)로 페르소나 아키텍처 전환
+# - 삭제 버전: v1.0.0
+# - Phase 2 (로어북), Phase 3 (월드북)은 기존 로직 유지
 #
 # 이 모듈은 외부 라이브러리에 의존하지 않는 순수 도메인 로직이다.
 
@@ -28,110 +30,166 @@ OUTPUT_LANGUAGE_NAMES: dict[str, str] = {
 DEFAULT_OUTPUT_LANGUAGE = "ko"
 
 # ============================================================
-# Phase 1: AI Persona Vibe Fill
+# Phase 1: VibeSmith 9섹션 동적 페르소나 생성 (v1.0.0)
 # ============================================================
 
-# AI 캐릭터 생성 시스템 프롬프트
-# 바이브에 명시적으로 언급된 내용은 충실히 반영하고,
-# 미언급 항목은 바이브의 분위기에서 가장 개연성 있는 내용을 추론하여 채운다.
-VIBE_FILL_SYSTEM_PROMPT = """\
-당신은 창작 AI 캐릭터 디자이너입니다.
-사용자가 캐릭터의 '바이브'(분위기, 느낌, 핵심 컨셉)를 자유롭게 설명하면,
-그 바이브를 바탕으로 14개 필드를 채워 생동감 있고 개연성 있는 캐릭터를 만들어주세요.
+# VibeSmith 스타일 페르소나 생성 시스템 프롬프트
+# 사용자의 짧은 바이브 입력에서 9개 섹션으로 구성된 완전한 캐릭터를 생성한다.
+VIBESMITH_SYSTEM_PROMPT = """\
+당신은 VibeSmith — 동적 페르소나 생성기입니다.
+사용자의 짧은 바이브(분위기, 느낌, 키워드)를 입력받아
+9개 섹션으로 구성된 살아있는 캐릭터 카드를 생성합니다.
 
-## 규칙
+## 핵심 원칙
 
-1. **바이브 우선**: 사용자가 언급한 내용은 최대한 충실하게 반영합니다.
-2. **개연성 추론**: 언급되지 않은 항목은 바이브의 분위기에서 가장 자연스러운 내용으로 추론합니다.
-3. **캐릭터 일관성**: 모든 필드가 하나의 인물로서 서로 모순 없이 어울려야 합니다.
-4. **구체성**: 추상적이지 않고, 롤플레이에서 즉시 사용할 수 있을 만큼 구체적으로 작성합니다.
-5. **말투 필드**: 실제 대사 예시를 1~2개 포함하여 캐릭터의 목소리를 들려줍니다.
-6. **응답 언어**: 반드시 {output_language}로 모든 내용을 작성합니다.
+1. **성격은 고정 레이블이 아니라 동적 함수다**: 캐릭터 행동 = f(고정설정, 동적동기, 기억, 현재맥락)
+2. **모든 방어전략은 미충족 욕구에서 비롯된다**: 방어적 행동에는 반드시 이유가 있어야 한다.
+3. **관계는 정적 라벨이 아니라 상태 변수다**: trust, familiarity 등 수치로 변화를 추적한다.
+4. **기억이 행동을 바꾼다**: 과거 상호작용이 미래 반응에 영향을 미쳐야 한다.
+5. **바이브에 명시된 것은 반드시 반영**: 사용자가 언급한 내용은 충실히 포함한다.
+6. **미언급 항목은 가장 개연성 있는 내용으로 추론**: 나머지는 분위기에서 자연스럽게 채운다.
+
+## 응답 언어
+
+반드시 {output_language}로 모든 내용을 작성합니다.
 
 ## 출력 형식
 
-반드시 아래 JSON 형식으로만 응답하세요. 다른 설명이나 마크다운 없이 순수 JSON만 출력합니다.
+반드시 아래 JSON 형식으로만 응답하세요. 설명, 마크다운, 코드 블록 감싸기 없이 순수 JSON만 출력합니다.
 
-```json
-{
-  "name": "캐릭터 이름",
-  "age": "나이 또는 나이대",
-  "gender": "성별 또는 정체성",
-  "role_name": "세계 내 직업 또는 역할",
-  "appearance": "시각적 외모 묘사 (의상, 특징 등 포함)",
-  "backstory": "과거 경험과 배경 이야기",
-  "personality": "핵심 성격 특성",
-  "speaking_style": "대화 패턴, 어투, 말버릇. 대사 예시 1~2개 포함",
-  "relationships": "주요 인간관계와 네트워크",
-  "skills": "특수 능력, 재능, 전문 분야",
-  "interests": "취미, 관심사, 여가 활동",
-  "weaknesses": "약점, 두려움, 트라우마",
-  "goals": "캐릭터가 추구하는 목표와 행동 방향",
-  "restrictions": "캐릭터가 절대 하지 않는 것, 행동 제한"
-}
-```"""
-
-# 14개 필드 키 목록 (JSON 파싱 검증용)
-PERSONA_FIELD_KEYS = [
-    "name", "age", "gender", "role_name",
-    "appearance", "backstory", "personality", "speaking_style",
-    "relationships", "skills", "interests", "weaknesses",
-    "goals", "restrictions",
-]
+{{
+  "generation_summary": {{
+    "input_vibe": "사용자 입력 원문",
+    "interpretation": "AI가 해석한 캐릭터 설명",
+    "realism_level": "grounded|stylized|dramatic|fantasy|surreal 중 하나",
+    "core_tension": "이 캐릭터를 살아있게 만드는 핵심 모순"
+  }},
+  "fixed_canon": {{
+    "identity": {{
+      "name": "이름",
+      "age": "나이/나이대",
+      "gender": "성별",
+      "birthday": "생일 또는 계절",
+      "cultural_context": "문화적 맥락",
+      "current_location": "거주/활동 지역",
+      "occupation": "직업/역할",
+      "education": "교육"
+    }},
+    "appearance": {{
+      "height": "", "build": "", "face_impression": "",
+      "hair": "", "eyes": "", "clothing_style": "",
+      "notable_details": "", "usual_posture": "", "voice": ""
+    }},
+    "living": {{
+      "housing": "", "financial_situation": "", "family_structure": "",
+      "daily_routine": "", "frequent_places": "", "important_possessions": "",
+      "current_life_problem": "", "recent_life_change": ""
+    }},
+    "skills": {{
+      "main_skills": "", "secondary_skills": "", "hobbies": "",
+      "private_interests": "", "weak_areas": "", "things_avoided": ""
+    }}
+  }},
+  "core_dynamic": {{
+    "core_wants": ["원하는 것1", "원하는 것2"],
+    "core_needs": ["필요하지만 인정 못하는 것"],
+    "core_fears": ["핵심 공포"],
+    "core_tension": "핵심 모순",
+    "self_concept": {{"i_am": "나는...", "i_am_not": "나는...이 아니다"}},
+    "self_lie": "자기를 보호하지만 제한하는 거짓말",
+    "hidden_truth": "관계 발전을 통해 접근하는 숨겨진 진실"
+  }},
+  "social_model": {{
+    "general_style": {{"strangers": "", "friends": "", "authority": ""}},
+    "user_represents": "", "wants_from_user": "", "fears_from_user": "",
+    "hides_from_user": "", "tests_user": "",
+    "trust_builders": "", "trust_breakers": "",
+    "relationship_state": {{
+      "trust": 30, "familiarity": 20, "emotional_reliance": 10,
+      "comfort_with_silence": 40, "willingness_to_initiate": 15,
+      "fear_of_rejection": 50, "boundary_sensitivity": 60,
+      "topic_comfort": {{}}, "repair_ability": 40
+    }}
+  }},
+  "behavior_rules": {{
+    "when_uncertain": "", "when_praised": "", "when_criticized": "",
+    "when_ignored": "", "when_user_is_kind": "", "when_user_is_too_direct": "",
+    "when_asked_personal": "", "when_talking_hobbies": "",
+    "when_feeling_safe": "", "when_overwhelmed": "",
+    "when_relationship_improves": "", "when_trust_damaged": ""
+  }},
+  "habits": {{
+    "speech": {{
+      "rhythm": "", "common_phrases": [], "verbal_tics": "",
+      "when_embarrassed": "", "when_defensive": "", "when_hiding_happiness": ""
+    }},
+    "body_language": {{
+      "nervous_habits": "", "comfort_habits": "", "avoidance_habits": "",
+      "signs_of_trust": "", "signs_of_discomfort": "",
+      "signs_of_hidden_happiness": "", "signs_of_attachment": ""
+    }},
+    "everyday": {{
+      "mundane_inconvenience": "", "small_comfort_ritual": "",
+      "private_preference": "", "social_blind_spot": "",
+      "better_than_admitted": "", "worse_than_believed": "",
+      "favorite_object": "", "least_favorite_task": ""
+    }}
+  }},
+  "emotional_dynamics": {{
+    "default_baseline": "기본 감정 상태",
+    "escalation": {{"trigger": "", "interpretation": "", "feeling": "", "behavior": "", "consequence": ""}},
+    "recovery": {{"trigger": "", "interpretation": "", "feeling": "", "behavior": "", "consequence": ""}},
+    "trust_growth": {{"trigger": "", "interpretation": "", "feeling": "", "behavior": "", "consequence": ""}},
+    "trust_damage": {{"trigger": "", "interpretation": "", "feeling": "", "behavior": "", "consequence": ""}}
+  }},
+  "memory_policy": {{
+    "store_triggers": ["약속 이행/불이행", "칭찬", "경계 존중/침범"],
+    "effect_mappings": {{"칭찬": "trust+1"}},
+    "retrieval_priorities": ["현재 주제", "유사 상황 과거 행동"]
+  }},
+  "response_rules": {{
+    "pre_inference_checks": ["이 순간 캐릭터가 원하는 것은?", "두려운 것은?"],
+    "behavior_rules": ["정형화된 반응 금지", "상태에 따라 행동 조절"]
+  }},
+  "coherence_report": {{
+    "checked_areas": {{"경제": "OK", "심리": "OK"}},
+    "detected_contradictions": [],
+    "repairs_applied": [],
+    "productive_tensions": ["핵심 긴장"],
+    "final_notes": []
+  }}
+}}"""
 
 
 @dataclass
 class VibeFillResult:
     """Vibe Fill LLM 응답 파싱 결과.
 
-    success=True이면 fields에 14개 필드가 채워져 있다.
+    [v1.0.0] 9섹션 PersonaCard JSON을 담는다.
+    success=True이면 persona_data에 전체 JSON dict가 채워져 있다.
     success=False이면 error에 실패 사유가 기록된다.
     """
     success: bool
-    fields: dict[str, str] = field(default_factory=dict)
+    persona_data: dict[str, Any] = field(default_factory=dict)
     error: str = ""
     raw_response: str = ""
 
 
 def get_vibe_system_prompt(output_language: str = DEFAULT_OUTPUT_LANGUAGE) -> str:
-    """출력 언어가 적용된 Vibe Fill 시스템 프롬프트를 반환한다.
-
-    Args:
-        output_language: 출력 언어 코드 ("ko" 또는 "en").
-
-    Returns:
-        출력 언어가 적용된 시스템 프롬프트.
-    """
-    lang_name = OUTPUT_LANGUAGE_NAMES.get(output_language, OUTPUT_LANGUAGE_NAMES[DEFAULT_OUTPUT_LANGUAGE])
-    return VIBE_FILL_SYSTEM_PROMPT.replace("{output_language}", lang_name)
+    """출력 언어가 적용된 VibeSmith 시스템 프롬프트를 반환한다."""
+    lang_name = OUTPUT_LANGUAGE_NAMES.get(
+        output_language, OUTPUT_LANGUAGE_NAMES[DEFAULT_OUTPUT_LANGUAGE],
+    )
+    return VIBESMITH_SYSTEM_PROMPT.replace("{output_language}", lang_name)
 
 
 def build_vibe_prompt(vibe_text: str) -> str:
-    """바이브 텍스트를 사용자 메시지로 변환한다.
-
-    시스템 프롬프트와 함께 사용되어 LLM에 전송된다.
-
-    Args:
-        vibe_text: 사용자가 입력한 캐릭터 바이브 텍스트.
-
-    Returns:
-        LLM에 전송할 사용자 메시지.
-    """
+    """바이브 텍스트를 사용자 메시지로 변환한다."""
     return f"아래 바이브를 바탕으로 캐릭터를 만들어주세요:\n\n{vibe_text}"
 
 
 def _extract_json(raw_text: str) -> str:
-    """LLM 응답에서 JSON 문자열을 추출하는 공통 유틸리티.
-
-    1. ```json ... ``` 패턴 우선 추출
-    2. 최외곽 { } 또는 [ ] 추출
-
-    Args:
-        raw_text: LLM 원문 응답.
-
-    Returns:
-        추출된 JSON 문자열.
-    """
+    """LLM 응답에서 JSON 문자열을 추출하는 공통 유틸리티."""
     json_str = raw_text.strip()
 
     # ```json ... ``` 패턴 추출
@@ -139,7 +197,7 @@ def _extract_json(raw_text: str) -> str:
     if json_block_match:
         json_str = json_block_match.group(1).strip()
 
-    # 최외곽 { } 추출 (단일 객체)
+    # 최외곽 { } 또는 [ ] 추출
     if not json_str.startswith("{") and not json_str.startswith("["):
         brace_match = re.search(r"[\{\[].*[\}\]]", json_str, re.DOTALL)
         if brace_match:
@@ -149,16 +207,10 @@ def _extract_json(raw_text: str) -> str:
 
 
 def parse_vibe_response(raw_text: str) -> VibeFillResult:
-    """LLM 응답에서 14개 필드 JSON을 추출하고 파싱한다.
+    """LLM 응답에서 VibeSmith 9섹션 JSON을 추출하고 파싱한다.
 
-    JSON 블록(```json ... ```)이 있으면 그 안의 내용을 파싱하고,
-    없으면 전체 텍스트를 JSON으로 파싱한다.
-
-    Args:
-        raw_text: LLM의 원문 응답.
-
-    Returns:
-        VibeFillResult — 성공 시 14개 필드가 채워짐.
+    [v1.0.0] 기존 14필드 파서에서 9섹션 JSON 파서로 교체.
+    필수 섹션: generation_summary, fixed_canon.
     """
     result = VibeFillResult(success=False, raw_response=raw_text)
 
@@ -168,30 +220,32 @@ def parse_vibe_response(raw_text: str) -> VibeFillResult:
         data = json.loads(json_str)
     except json.JSONDecodeError as e:
         result.error = f"JSON 파싱 실패: {e}"
-        logger.warning("Vibe Fill JSON 파싱 실패: %s", e)
+        logger.warning("VibeSmith JSON 파싱 실패: %s", e)
         return result
 
     if not isinstance(data, dict):
         result.error = "응답이 JSON 객체가 아닙니다."
         return result
 
-    # 필드 추출 — 존재하지 않는 키는 빈 문자열로 대체
-    fields: dict[str, str] = {}
-    for key in PERSONA_FIELD_KEYS:
-        value = data.get(key, "")
-        # 값이 문자열이 아니면 문자열로 변환
-        fields[key] = str(value) if value is not None else ""
-
-    # 필수 필드 검증 (name, role_name, personality, speaking_style)
-    missing = [k for k in ("name", "role_name", "personality", "speaking_style") if not fields.get(k)]
+    # 필수 섹션 검증
+    required_sections = ["generation_summary", "fixed_canon"]
+    missing = [s for s in required_sections if s not in data]
     if missing:
-        result.error = f"필수 필드 누락: {', '.join(missing)}"
-        result.fields = fields  # 부분 결과도 전달
+        result.error = f"필수 섹션 누락: {', '.join(missing)}"
+        result.persona_data = data
+        return result
+
+    # fixed_canon.identity.name 검증
+    identity = data.get("fixed_canon", {}).get("identity", {})
+    if not identity.get("name"):
+        result.error = "캐릭터 이름(fixed_canon.identity.name)이 누락되었습니다."
+        result.persona_data = data
         return result
 
     result.success = True
-    result.fields = fields
-    logger.info("Vibe Fill 파싱 성공: 캐릭터 '%s'", fields.get("name", "?"))
+    result.persona_data = data
+    name = identity.get("name", "?")
+    logger.info("VibeSmith 파싱 성공: 캐릭터 '%s'", name)
     return result
 
 
