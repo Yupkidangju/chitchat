@@ -107,10 +107,20 @@ class ProviderService:
         return saved
 
     def delete_provider(self, id_: str) -> bool:
-        """Provider를 삭제하고, keyring에서 API Key도 삭제한다."""
+        """[v1.0.0] Provider를 삭제하고, keyring에서 API Key도 삭제한다.
+
+        ModelProfile이 이 Provider를 참조 중이면 삭제를 차단한다.
+        """
         provider = self._repos.providers.get_by_id(id_)
         if not provider:
             return False
+
+        # [v1.0.0] ModelProfile 참조 검사
+        model_profiles = self._repos.model_profiles.get_all()
+        refs = [mp.name for mp in model_profiles if mp.provider_profile_id == id_]
+        if refs:
+            msg = f"Provider가 {len(refs)}개 모델 프로필에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
 
         # keyring에서 API Key 삭제
         if provider.secret_ref and provider.provider_kind != "lm_studio":

@@ -133,9 +133,12 @@ async def update_provider(
 
 @router.delete("/providers/{provider_id}")
 async def delete_provider(provider_id: str, request: Request) -> dict[str, bool]:
-    """Provider를 삭제한다."""
+    """[v1.0.0] Provider를 삭제한다. 참조 중이면 409 반환."""
     svc = _get_provider_service(request)
-    ok = svc.delete_provider(provider_id)
+    try:
+        ok = svc.delete_provider(provider_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="Provider를 찾을 수 없습니다")
     return {"deleted": True}

@@ -19,6 +19,10 @@
   - 메타 정보 (프로필 ID, 모델 ID, 생성 시각)
   - 어시스턴트 메시지의 [🔍 프롬프트] 버튼 → Inspector 자동 전환
   - `GET /sessions/{id}/messages/{msg_id}/snapshot` 엔드포인트 신규
+- **데이터 무결성 검증**: 프로필 삭제 시 연관 참조 검사 추가 (7개 엔티티)
+  - 참조 중인 엔티티 삭제 시 409 Conflict 반환
+  - Provider → ModelProfile, ModelProfile → ChatProfile, AIPersona → ChatProfile
+  - Lorebook/Worldbook → ChatProfile, ChatProfile/UserPersona → ChatSession
 
 - **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
 - **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조

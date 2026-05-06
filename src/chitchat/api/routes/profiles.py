@@ -181,9 +181,12 @@ async def create_user_persona(
 
 @router.delete("/user-personas/{persona_id}")
 async def delete_user_persona(persona_id: str, request: Request) -> dict[str, bool]:
-    """UserPersona를 삭제한다."""
+    """[v1.0.0] UserPersona를 삭제한다. 참조 중이면 409 반환."""
     svc = _get_profile_service(request)
-    ok = svc.delete_user_persona(persona_id)
+    try:
+        ok = svc.delete_user_persona(persona_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="UserPersona를 찾을 수 없습니다")
     return {"deleted": True}
@@ -258,9 +261,12 @@ async def update_model_profile(
 async def delete_model_profile(
     profile_id: str, request: Request,
 ) -> dict[str, bool]:
-    """ModelProfile을 삭제한다."""
+    """[v1.0.0] ModelProfile을 삭제한다. 참조 중이면 409 반환."""
     svc = _get_profile_service(request)
-    ok = svc.delete_model_profile(profile_id)
+    try:
+        ok = svc.delete_model_profile(profile_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="ModelProfile을 찾을 수 없습니다")
     return {"deleted": True}
@@ -350,9 +356,12 @@ async def update_chat_profile(
 async def delete_chat_profile(
     profile_id: str, request: Request,
 ) -> dict[str, bool]:
-    """ChatProfile을 삭제한다."""
+    """[v1.0.0] ChatProfile을 삭제한다. 참조 중이면 409 반환."""
     svc = _get_profile_service(request)
-    ok = svc.delete_chat_profile(profile_id)
+    try:
+        ok = svc.delete_chat_profile(profile_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="ChatProfile을 찾을 수 없습니다")
     return {"deleted": True}
@@ -383,9 +392,12 @@ async def create_lorebook(
 
 @router.delete("/lorebooks/{lorebook_id}")
 async def delete_lorebook(lorebook_id: str, request: Request) -> dict[str, bool]:
-    """Lorebook을 삭제한다."""
+    """[v1.0.0] Lorebook을 삭제한다. 참조 중이면 409 반환."""
     svc = _get_profile_service(request)
-    ok = svc.delete_lorebook(lorebook_id)
+    try:
+        ok = svc.delete_lorebook(lorebook_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="Lorebook을 찾을 수 없습니다")
     return {"deleted": True}
@@ -464,9 +476,12 @@ async def create_worldbook(
 
 @router.delete("/worldbooks/{worldbook_id}")
 async def delete_worldbook(worldbook_id: str, request: Request) -> dict[str, bool]:
-    """Worldbook을 삭제한다."""
+    """[v1.0.0] Worldbook을 삭제한다. 참조 중이면 409 반환."""
     svc = _get_profile_service(request)
-    ok = svc.delete_worldbook(worldbook_id)
+    try:
+        ok = svc.delete_worldbook(worldbook_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
     if not ok:
         raise HTTPException(status_code=404, detail="Worldbook을 찾을 수 없습니다")
     return {"deleted": True}

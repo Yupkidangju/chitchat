@@ -66,6 +66,16 @@ class ProfileService:
         return saved
 
     def delete_user_persona(self, id_: str) -> bool:
+        """[v1.0.0] UserPersona를 삭제한다.
+
+        채팅 세션이 이 UserPersona를 참조 중이면 삭제를 차단한다.
+        """
+        # 채팅 세션 참조 검사
+        sessions = self._repos.chat_sessions.get_all()
+        refs = [s.title for s in sessions if s.user_persona_id == id_]
+        if refs:
+            msg = f"UserPersona가 {len(refs)}개 세션에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.user_personas.delete_by_id(id_)
 
     # --- AIPersona ---
@@ -120,6 +130,16 @@ class ProfileService:
         return saved
 
     def delete_ai_persona(self, id_: str) -> bool:
+        """[v1.0.0] AIPersona를 삭제한다.
+
+        ChatProfile이 이 AIPersona를 참조 중이면 삭제를 차단한다.
+        """
+        # ChatProfile 참조 검사
+        profiles = self._repos.chat_profiles.get_all()
+        refs = [cp.name for cp in profiles if id_ in json.loads(cp.ai_persona_ids_json)]
+        if refs:
+            msg = f"AIPersona가 {len(refs)}개 채팅 프로필에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.ai_personas.delete_by_id(id_)
 
     # --- Lorebook ---
@@ -146,6 +166,17 @@ class ProfileService:
         return saved
 
     def delete_lorebook(self, id_: str) -> bool:
+        """[v1.0.0] Lorebook을 삭제한다.
+
+        ChatProfile이 이 Lorebook을 참조 중이면 삭제를 차단한다.
+        삭제 시 하위 LoreEntry도 함께 삭제된다.
+        """
+        # ChatProfile 참조 검사
+        profiles = self._repos.chat_profiles.get_all()
+        refs = [cp.name for cp in profiles if id_ in json.loads(cp.lorebook_ids_json)]
+        if refs:
+            msg = f"Lorebook이 {len(refs)}개 채팅 프로필에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.lorebooks.delete_by_id(id_)
 
     def get_lore_entries(self, lorebook_id: str) -> list[LoreEntryRow]:
@@ -201,6 +232,16 @@ class ProfileService:
         return saved
 
     def delete_worldbook(self, id_: str) -> bool:
+        """[v1.0.0] Worldbook을 삭제한다.
+
+        ChatProfile이 이 Worldbook을 참조 중이면 삭제를 차단한다.
+        """
+        # ChatProfile 참조 검사
+        profiles = self._repos.chat_profiles.get_all()
+        refs = [cp.name for cp in profiles if id_ in json.loads(cp.worldbook_ids_json)]
+        if refs:
+            msg = f"Worldbook이 {len(refs)}개 채팅 프로필에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.worldbooks.delete_by_id(id_)
 
     def get_world_entries(self, worldbook_id: str) -> list[WorldEntryRow]:
@@ -261,6 +302,16 @@ class ProfileService:
         return saved
 
     def delete_model_profile(self, id_: str) -> bool:
+        """[v1.0.0] ModelProfile을 삭제한다.
+
+        ChatProfile이 이 ModelProfile을 참조 중이면 삭제를 차단한다.
+        """
+        # ChatProfile 참조 검사
+        profiles = self._repos.chat_profiles.get_all()
+        refs = [cp.name for cp in profiles if cp.model_profile_id == id_]
+        if refs:
+            msg = f"ModelProfile이 {len(refs)}개 채팅 프로필에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.model_profiles.delete_by_id(id_)
 
     # --- ChatProfile ---
@@ -300,6 +351,16 @@ class ProfileService:
         return saved
 
     def delete_chat_profile(self, id_: str) -> bool:
+        """[v1.0.0] ChatProfile을 삭제한다.
+
+        채팅 세션이 이 ChatProfile을 참조 중이면 삭제를 차단한다.
+        """
+        # 채팅 세션 참조 검사
+        sessions = self._repos.chat_sessions.get_all()
+        refs = [s.title for s in sessions if s.chat_profile_id == id_]
+        if refs:
+            msg = f"ChatProfile이 {len(refs)}개 세션에서 사용 중: {', '.join(refs[:3])}"
+            raise ValueError(msg)
         return self._repos.chat_profiles.delete_by_id(id_)
 
     def update_chat_profile_prompt_order(self, profile_id: str, prompt_order_json: str) -> ChatProfileRow:
