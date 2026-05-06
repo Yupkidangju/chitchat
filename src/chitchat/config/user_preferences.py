@@ -8,6 +8,10 @@
 # 지원 설정:
 # - ui_locale: UI 표시 언어 (ko, en, ja, zh_tw, zh_cn)
 # - vibe_output_language: Vibe Fill AI 출력 언어 (ko, en)
+# - theme: 테마 (light, dark) — v1.0.0에서는 light만 지원
+# - font_size: UI 폰트 크기 (small, medium, large)
+# - streaming_enabled: 스트리밍 채팅 사용 여부
+# - default_provider_id: 기본 Provider 프로필 ID
 
 from __future__ import annotations
 
@@ -24,6 +28,10 @@ _SETTINGS_FILENAME = "settings.json"
 _DEFAULTS: dict[str, str] = {
     "ui_locale": "ko",
     "vibe_output_language": "ko",
+    "theme": "light",
+    "font_size": "medium",
+    "streaming_enabled": "true",
+    "default_provider_id": "",
 }
 
 
@@ -71,6 +79,48 @@ class UserPreferences:
     def vibe_output_language(self, value: str) -> None:
         """Vibe Fill AI 출력 언어 코드를 설정한다."""
         self._data["vibe_output_language"] = value
+
+    # [v1.0.0] 확장 설정 필드
+
+    @property
+    def theme(self) -> str:
+        """테마를 반환한다 (light, dark)."""
+        return self._data.get("theme", _DEFAULTS["theme"])
+
+    @theme.setter
+    def theme(self, value: str) -> None:
+        """테마를 설정한다."""
+        self._data["theme"] = value
+
+    @property
+    def font_size(self) -> str:
+        """폰트 크기를 반환한다 (small, medium, large)."""
+        return self._data.get("font_size", _DEFAULTS["font_size"])
+
+    @font_size.setter
+    def font_size(self, value: str) -> None:
+        """폰트 크기를 설정한다."""
+        self._data["font_size"] = value
+
+    @property
+    def streaming_enabled(self) -> bool:
+        """스트리밍 사용 여부를 반환한다."""
+        return self._data.get("streaming_enabled", "true") == "true"
+
+    @streaming_enabled.setter
+    def streaming_enabled(self, value: bool) -> None:
+        """스트리밍 사용 여부를 설정한다."""
+        self._data["streaming_enabled"] = "true" if value else "false"
+
+    @property
+    def default_provider_id(self) -> str:
+        """기본 Provider ID를 반환한다."""
+        return self._data.get("default_provider_id", "")
+
+    @default_provider_id.setter
+    def default_provider_id(self, value: str) -> None:
+        """기본 Provider ID를 설정한다."""
+        self._data["default_provider_id"] = value
 
     def load(self, app_data_dir: Path) -> None:
         """설정 파일을 로드한다.

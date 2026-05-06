@@ -23,6 +23,12 @@
   - 참조 중인 엔티티 삭제 시 409 Conflict 반환
   - Provider → ModelProfile, ModelProfile → ChatProfile, AIPersona → ChatProfile
   - Lorebook/Worldbook → ChatProfile, ChatProfile/UserPersona → ChatSession
+- **설정 페이지 고도화 (DD-12)**: 4개 섹션으로 확장
+  - 🌐 언어 설정: UI 로케일 + Vibe Fill 출력 언어
+  - 🎨 표시 설정: 테마 (light/dark 준비), 폰트 크기 (small/medium/large)
+  - ⚙️ 일반 설정: 스트리밍 활성화, 기본 Provider 선택
+  - 🗂️ 데이터 관리: 앱 경로 표시, 설정 초기화
+  - `POST /settings/reset` 엔드포인트 신규
 
 - **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
 - **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조

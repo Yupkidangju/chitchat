@@ -418,8 +418,10 @@ Vibe Fill 결과는 즉시 저장되지 않고 UI에 **미리보기 체크리스
 
 ### 결과
 
-- `app.py`에서 `_placeholder()` 위젯으로 등록
-- 기능적 설정 변경은 MVP 범위 외
+- `settings.js`에서 4개 섹션(언어, 표시, 일반, 데이터 관리)으로 확장 완료 (v1.0.0)
+- `UserPreferences`에 `theme`, `font_size`, `streaming_enabled`, `default_provider_id` 필드 추가
+- `POST /settings/reset` 엔드포인트로 설정 초기화 지원
+- 폰트 크기 변경 시 CSS 변수 `--font-size-base` 즉시 적용
 
 ---
 
