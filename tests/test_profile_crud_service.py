@@ -230,3 +230,60 @@ class TestReferentialIntegrity:
         assert svc.delete_ai_persona(ai.id) is True
         assert svc.get_ai_persona(ai.id) is None
 
+
+class TestProviderReferentialIntegrity:
+    """[v1.0.0] Provider 삭제 시 ModelProfile 참조 검사 테스트."""
+
+    def test_delete_provider_blocked_by_model_profile(self) -> None:
+        """ModelProfile이 Provider를 참조 중이면 삭제 차단."""
+        from unittest.mock import MagicMock
+        from chitchat.services.provider_service import ProviderService
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        sf = sessionmaker(bind=engine)
+        repos = RepositoryRegistry(sf)
+
+        # mock key_store과 provider_registry
+        mock_key_store = MagicMock()
+        mock_registry = MagicMock()
+        prov_svc = ProviderService(repos, mock_registry, mock_key_store)
+        prof_svc = ProfileService(repos)
+
+        # Provider 생성
+        prov = prov_svc.save_provider(
+            name="테스트Gemini", provider_kind="gemini",
+            api_key=None, timeout_seconds=30,
+        )
+
+        # ModelProfile이 Provider를 참조
+        prof_svc.save_model_profile(
+            name="Flash모델", provider_profile_id=prov.id,
+            model_id="test-model", settings_json='{}',
+        )
+
+        # 삭제 시도 → 차단
+        with pytest.raises(ValueError, match="사용 중"):
+            prov_svc.delete_provider(prov.id)
+
+    def test_delete_unreferenced_provider_succeeds(self) -> None:
+        """참조되지 않은 Provider는 정상 삭제."""
+        from unittest.mock import MagicMock
+        from chitchat.services.provider_service import ProviderService
+
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        sf = sessionmaker(bind=engine)
+        repos = RepositoryRegistry(sf)
+
+        mock_key_store = MagicMock()
+        mock_registry = MagicMock()
+        prov_svc = ProviderService(repos, mock_registry, mock_key_store)
+
+        prov = prov_svc.save_provider(
+            name="삭제대상", provider_kind="lm_studio",
+            timeout_seconds=30,
+        )
+
+        assert prov_svc.delete_provider(prov.id) is True
+        assert prov_svc.get_provider(prov.id) is None
