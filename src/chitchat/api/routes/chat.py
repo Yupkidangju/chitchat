@@ -43,6 +43,8 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     created_at: str
+    # [v1.0.0] 프롬프트 Inspector — assistant 메시지에만 스냅샷 포함
+    prompt_snapshot_json: str | None = None
 
 
 class SendMessageRequest(BaseModel):
@@ -114,10 +116,32 @@ async def get_session(session_id: str, request: Request) -> dict[str, Any]:
                 "role": m.role,
                 "content": m.content,
                 "created_at": m.created_at,
+                # [v1.0.0] 프롬프트 Inspector — 스냅샷 JSON 포함
+                "prompt_snapshot_json": m.prompt_snapshot_json,
             }
             for m in messages
         ],
     }
+
+
+@router.get("/sessions/{session_id}/messages/{message_id}/snapshot")
+async def get_message_snapshot(
+    session_id: str, message_id: str, request: Request,
+) -> dict[str, Any]:
+    """[v1.0.0] 단일 메시지의 프롬프트 스냅샷을 반환한다.
+
+    designs.md §9.9 프롬프트 Inspector에서 사용한다.
+    assistant 메시지에만 스냅샷이 존재하며, 없으면 404를 반환한다.
+    """
+    import json
+    svc = _get_chat_service(request)
+    messages = svc.get_session_messages(session_id)
+    target = next((m for m in messages if m.id == message_id), None)
+    if not target:
+        raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+    if not target.prompt_snapshot_json:
+        raise HTTPException(status_code=404, detail="이 메시지에는 프롬프트 스냅샷이 없습니다")
+    return json.loads(target.prompt_snapshot_json)
 
 
 @router.delete("/sessions/{session_id}")
@@ -274,10 +298,16 @@ async def _stream_ai_response(
             loop,
         )
 
-    def on_finish(full_text: str, usage: dict[str, object] | None) -> None:
-        """스트리밍 완료 시 done 메시지를 전송한다."""
+    def on_finish(full_text: str, usage: dict[str, object] | None, message_id: str) -> None:
+        """스트리밍 완료 시 done 메시지를 전송한다.
+
+        [v1.0.0] message_id를 포함하여 프론트엔드가 Inspector 스냅샷을 조회할 수 있게 한다.
+        """
         asyncio.run_coroutine_threadsafe(
-            websocket.send_json({"type": "done", "content": "", "usage": usage}),
+            websocket.send_json({
+                "type": "done", "content": "", "usage": usage,
+                "message_id": message_id,
+            }),
             loop,
         )
         done_event.set()

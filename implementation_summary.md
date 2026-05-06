@@ -316,7 +316,7 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 | `api/routes/profiles.py` | Lorebook + LoreEntry | 5 | ✅ |
 | `api/routes/profiles.py` | Worldbook + WorldEntry | 5 | ✅ |
 | `api/routes/profiles.py` | UserPersona | 3 | ✅ |
-| `api/routes/chat.py` | ChatSession + WebSocket | 5 | ✅ |
+| `api/routes/chat.py` | ChatSession + WebSocket + Inspector | 6 | ✅ |
 | `api/routes/settings.py` | UserPreferences | 2 | ✅ |
 | `api/routes/health.py` | Health | 1 | ✅ |
 
@@ -324,7 +324,7 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 
 | 페이지 | 파일 | 주요 기능 | 상태 |
 |---|---|---|:---:|
-| 채팅 | `chat.js` | 3컬럼, WebSocket, 동적 상태, 세션 생성 모달 | ✅ |
+| 채팅 | `chat.js` | 3컬럼, WebSocket, 동적 상태, 프롬프트 Inspector, 세션 생성 모달 | ✅ |
 | 공급자 | `providers.js` | CRUD, 연결 테스트, 모델 캐시 | ✅ |
 | 모델 설정 | `models.js` | ModelProfile CRUD, Provider 연동 모델 선택 | ✅ |
 | 페르소나 | `personas.js` | VibeFill AI 생성, 9섹션 편집 | ✅ |

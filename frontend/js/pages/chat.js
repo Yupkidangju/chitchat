@@ -1,10 +1,22 @@
 // frontend/js/pages/chat.js
-// [v1.0.0] 채팅 페이지 — WebSocket 기반 실시간 대화
+// [v1.0.0] 채팅 페이지 — WebSocket 기반 실시간 대화 + 프롬프트 Inspector
 //
-// 세션 선택/생성, 메시지 표시, WebSocket 스트리밍을 처리한다.
+// 세션 선택/생성, 메시지 표시, WebSocket 스트리밍, 프롬프트 스냅샷 Inspector를 처리한다.
+// [v1.0.0] 우측 패널을 탭 방식(캐릭터 상태 | Inspector)으로 확장
 
 let chatWebSocket = null;
 let currentSessionId = null;
+
+// [v1.0.0] 블록 종류별 색상 매핑 — 토큰 예산 바 세그먼트에 사용
+const BLOCK_COLORS = {
+  system_base: '#6366f1',
+  ai_persona: '#f472b6',
+  user_persona: '#60a5fa',
+  worldbook: '#34d399',
+  lorebook_match: '#fbbf24',
+  chat_history: '#a78bfa',
+  current_input: '#fb923c',
+};
 
 /**
  * 채팅 페이지를 렌더링한다.
@@ -37,11 +49,21 @@ async function renderChat(container) {
       </div>
       <div class="dynamic-state-panel" id="dynamic-state-panel">
         <div class="panel-header">
-          <h4>🎭 캐릭터 상태</h4>
+          <h4>📊 정보</h4>
           <button class="btn btn-sm" id="btn-toggle-panel" title="패널 접기">◀</button>
         </div>
-        <div class="panel-body" id="dynamic-state-body">
+        <div class="panel-tabs">
+          <button class="panel-tab active" data-tab="state">🎭 상태</button>
+          <button class="panel-tab" data-tab="inspector">🔍 Inspector</button>
+        </div>
+        <div class="panel-tab-body active" id="tab-state">
           <p class="text-secondary">세션을 선택하면 캐릭터 동적 상태가 표시됩니다.</p>
+        </div>
+        <div class="panel-tab-body" id="tab-inspector">
+          <div class="inspector-empty">
+            <div class="inspector-empty-icon">🔍</div>
+            <p>AI 메시지의 [프롬프트] 버튼을 클릭하면<br>조립 결과가 표시됩니다.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -64,12 +86,23 @@ async function renderChat(container) {
     }
   });
 
-  // 동적 상태 패널 토글
+  // 패널 접기/펼치기
   document.getElementById('btn-toggle-panel').addEventListener('click', () => {
     const panel = document.getElementById('dynamic-state-panel');
     panel.classList.toggle('collapsed');
     const btn = document.getElementById('btn-toggle-panel');
     btn.textContent = panel.classList.contains('collapsed') ? '▶' : '◀';
+  });
+
+  // [v1.0.0] 탭 전환
+  document.querySelectorAll('.panel-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel-tab-body').forEach(b => b.classList.remove('active'));
+      tab.classList.add('active');
+      const targetId = 'tab-' + tab.dataset.tab;
+      document.getElementById(targetId)?.classList.add('active');
+    });
   });
 }
 
@@ -109,12 +142,7 @@ async function selectSession(sessionId) {
   try {
     const session = await apiGet(`/sessions/${sessionId}`);
     if (session.messages && session.messages.length > 0) {
-      messagesEl.innerHTML = session.messages.map(m => `
-        <div class="message message-${m.role}">
-          <div class="message-role">${m.role === 'user' ? '👤 나' : '🤖 AI'}</div>
-          <div class="message-content">${escapeHtml(m.content)}</div>
-        </div>
-      `).join('');
+      messagesEl.innerHTML = session.messages.map(m => renderMessageBubble(m)).join('');
       messagesEl.scrollTop = messagesEl.scrollHeight;
     } else {
       messagesEl.innerHTML = '<div class="chat-empty"><p>아직 메시지가 없습니다. 대화를 시작하세요!</p></div>';
@@ -128,6 +156,26 @@ async function selectSession(sessionId) {
 
   // 세션 목록 갱신 (활성 표시)
   await loadSessions();
+}
+
+/**
+ * [v1.0.0] 메시지 버블 HTML을 생성한다.
+ * assistant 메시지에는 프롬프트 보기 버튼을 추가한다.
+ */
+function renderMessageBubble(m) {
+  const roleLabel = m.role === 'user' ? '👤 나' : '🤖 AI';
+  // [v1.0.0] assistant 메시지에 스냅샷이 있으면 프롬프트 보기 버튼 추가
+  let promptBtn = '';
+  if (m.role === 'assistant' && m.prompt_snapshot_json) {
+    promptBtn = `<button class="btn-show-prompt" onclick="showPromptSnapshot('${m.id}')">🔍 프롬프트</button>`;
+  }
+  return `
+    <div class="message message-${m.role}" data-msg-id="${m.id}">
+      <div class="message-role">${roleLabel}</div>
+      <div class="message-content">${escapeHtml(m.content)}</div>
+      ${promptBtn}
+    </div>
+  `;
 }
 
 /**
@@ -157,15 +205,26 @@ function connectWebSocket(sessionId) {
       aiMsg.querySelector('.message-content').textContent += data.content;
       messagesEl.scrollTop = messagesEl.scrollHeight;
     } else if (data.type === 'done') {
-      // 스트리밍 완료 — 클래스 제거
+      // 스트리밍 완료 — 클래스 제거 + 프롬프트 버튼 추가
       const streamingMsg = messagesEl.querySelector('.message-streaming');
       if (streamingMsg) {
         streamingMsg.classList.remove('message-streaming');
+        // [v1.0.0] done 메시지에 message_id가 포함되어 있으면 프롬프트 버튼 추가
+        if (data.message_id) {
+          streamingMsg.setAttribute('data-msg-id', data.message_id);
+          const btn = document.createElement('button');
+          btn.className = 'btn-show-prompt';
+          btn.textContent = '🔍 프롬프트';
+          btn.onclick = () => showPromptSnapshot(data.message_id);
+          streamingMsg.appendChild(btn);
+          // 자동으로 Inspector에 최신 스냅샷 표시
+          showPromptSnapshot(data.message_id);
+        }
       }
-      // [v1.0.0] 동적 상태 갱신
+      // 동적 상태 갱신
       refreshDynamicState();
     } else if (data.type === 'error') {
-      // [v1.0.0] 스트리밍 에러 — 에러 메시지 표시
+      // 스트리밍 에러 — 에러 메시지 표시
       const streamingMsg = messagesEl.querySelector('.message-streaming');
       if (streamingMsg) {
         streamingMsg.classList.remove('message-streaming');
@@ -215,7 +274,7 @@ function sendMessage() {
  */
 async function refreshDynamicState() {
   if (!currentSessionId) return;
-  const body = document.getElementById('dynamic-state-body');
+  const body = document.getElementById('tab-state');
   if (!body) return;
 
   try {
@@ -271,6 +330,142 @@ async function refreshDynamicState() {
   } catch {
     body.innerHTML = '<p class="text-secondary">동적 상태 로드 실패</p>';
   }
+}
+
+/**
+ * [v1.0.0] 프롬프트 스냅샷을 Inspector 탭에 표시한다.
+ * designs.md §9.9 프롬프트 Inspector 규격 준수.
+ */
+async function showPromptSnapshot(messageId) {
+  // Inspector 탭으로 전환
+  document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel-tab-body').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-tab="inspector"]')?.classList.add('active');
+  document.getElementById('tab-inspector')?.classList.add('active');
+
+  // 패널이 접혀있으면 펼침
+  const panel = document.getElementById('dynamic-state-panel');
+  if (panel?.classList.contains('collapsed')) {
+    panel.classList.remove('collapsed');
+    const btn = document.getElementById('btn-toggle-panel');
+    if (btn) btn.textContent = '◀';
+  }
+
+  const inspectorBody = document.getElementById('tab-inspector');
+  if (!inspectorBody) return;
+
+  inspectorBody.innerHTML = '<p class="text-secondary" style="text-align:center;">스냅샷 로딩 중...</p>';
+
+  try {
+    const snapshot = await apiGet(`/sessions/${currentSessionId}/messages/${messageId}/snapshot`);
+    inspectorBody.innerHTML = renderInspectorContent(snapshot);
+  } catch (err) {
+    inspectorBody.innerHTML = `
+      <div class="inspector-empty">
+        <div class="inspector-empty-icon">⚠️</div>
+        <p>스냅샷 로드 실패<br><small>${escapeHtml(err.message)}</small></p>
+      </div>
+    `;
+  }
+}
+
+/**
+ * [v1.0.0] Inspector 콘텐츠 HTML을 생성한다.
+ * 토큰 예산 바, 블록 구성, 로어 매칭, 잘림, 메타 정보를 표시한다.
+ */
+function renderInspectorContent(snapshot) {
+  const totalTokens = snapshot.total_token_estimate || 0;
+  const budgetTokens = snapshot.budget_tokens || 0;
+  const blocks = snapshot.blocks || [];
+  const loreIds = snapshot.matched_lore_entry_ids || [];
+  const truncIds = snapshot.truncated_history_message_ids || [];
+  const usage = budgetTokens > 0 ? Math.round((totalTokens / budgetTokens) * 100) : 0;
+
+  // 토큰 예산 바 세그먼트 생성
+  let segmentsHtml = '';
+  let legendHtml = '';
+  if (budgetTokens > 0) {
+    for (const b of blocks) {
+      const pct = (b.token_estimate / budgetTokens) * 100;
+      const color = BLOCK_COLORS[b.kind] || '#94a3b8';
+      segmentsHtml += `<div class="token-segment" style="width:${pct}%;background:${color};" title="${b.kind}: ${b.token_estimate}"></div>`;
+    }
+    // 범례 — 고유 kind만
+    const seen = new Set();
+    for (const b of blocks) {
+      if (!seen.has(b.kind)) {
+        seen.add(b.kind);
+        const color = BLOCK_COLORS[b.kind] || '#94a3b8';
+        legendHtml += `<span class="legend-item"><span class="legend-dot" style="background:${color};"></span>${b.kind}</span>`;
+      }
+    }
+  }
+
+  // 사용률에 따른 상태 색상
+  let usageColor = 'var(--text-primary)';
+  if (usage >= 95) usageColor = 'var(--accent-danger)';
+  else if (usage >= 80) usageColor = '#f59e0b';
+
+  let html = '';
+
+  // ① 토큰 예산 바
+  html += `
+    <div class="token-budget-bar">
+      <div class="token-budget-label">
+        <span>토큰 사용</span>
+        <span style="color:${usageColor};">${totalTokens.toLocaleString()} / ${budgetTokens.toLocaleString()} (${usage}%)</span>
+      </div>
+      <div class="token-budget-track">${segmentsHtml}</div>
+      <div class="token-budget-legend">${legendHtml}</div>
+    </div>
+  `;
+
+  // ② 블록 구성
+  html += '<div class="inspector-section"><div class="inspector-section-title">📋 블록 구성</div>';
+  for (const b of blocks) {
+    html += `
+      <div class="block-list-item">
+        <span class="block-kind">${b.kind}</span>
+        <span class="block-tokens">${b.token_estimate.toLocaleString()} 토큰</span>
+      </div>
+    `;
+  }
+  html += '</div>';
+
+  // ③ 로어 매칭
+  if (loreIds.length > 0) {
+    html += `<div class="inspector-section"><div class="inspector-section-title">📖 로어 매칭 (${loreIds.length}건)</div>`;
+    html += '<div class="id-chip-list">';
+    for (const id of loreIds) {
+      html += `<span class="id-chip lore" title="${escapeHtml(id)}">${escapeHtml(id)}</span>`;
+    }
+    html += '</div></div>';
+  }
+
+  // ④ 잘린 히스토리
+  if (truncIds.length > 0) {
+    html += `<div class="inspector-section"><div class="inspector-section-title">✂️ 잘린 히스토리 (${truncIds.length}건)</div>`;
+    html += '<div class="id-chip-list">';
+    for (const id of truncIds) {
+      html += `<span class="id-chip truncated" title="${escapeHtml(id)}">${escapeHtml(id)}</span>`;
+    }
+    html += '</div></div>';
+  }
+
+  // ⑤ 메타 정보
+  html += `
+    <div class="inspector-section">
+      <div class="inspector-section-title">ℹ️ 메타</div>
+      <div class="inspector-meta">
+        <div><strong>프로필:</strong> ${escapeHtml(snapshot.chat_profile_id || '—')}</div>
+        <div><strong>모델:</strong> ${escapeHtml(snapshot.model_profile_id || '—')}</div>
+        <div><strong>히스토리:</strong> ${snapshot.history_count || 0}건 (잘림 ${snapshot.truncated_count || 0}건)</div>
+        <div><strong>생성:</strong> ${escapeHtml(snapshot.created_at_iso || '—')}</div>
+      </div>
+    </div>
+  `;
+
+  return html;
 }
 
 /**
@@ -382,4 +577,3 @@ async function showNewSessionModal() {
     }
   });
 }
-

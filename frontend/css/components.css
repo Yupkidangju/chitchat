@@ -612,6 +612,234 @@ select.input { cursor: pointer; }
 }
 
 /* ============================================================
+ * 우측 패널 탭 시스템
+ * [v1.0.0] 캐릭터 상태 ↔ 프롬프트 Inspector 탭 전환
+ * ============================================================ */
+
+.panel-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  background: var(--bg-secondary);
+}
+
+.panel-tab {
+  flex: 1;
+  padding: 0.5rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-bottom: 3px solid transparent;
+  transition: all 0.15s ease;
+}
+
+.panel-tab:hover {
+  background: rgba(0, 87, 255, 0.06);
+}
+
+.panel-tab.active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  background: rgba(0, 87, 255, 0.08);
+}
+
+.panel-tab-body {
+  display: none;
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+}
+
+.panel-tab-body.active {
+  display: block;
+}
+
+/* ============================================================
+ * 프롬프트 Inspector 패널
+ * [v1.0.0] designs.md §9.9 — 블록 구성, 토큰 바, 매칭, 잘림
+ * ============================================================ */
+
+/* 토큰 예산 바 — 세그먼트 분할 */
+.token-budget-bar {
+  margin-bottom: 0.75rem;
+}
+
+.token-budget-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+
+.token-budget-track {
+  height: 16px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  border: 2px solid var(--border);
+  overflow: hidden;
+  display: flex;
+}
+
+.token-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+  position: relative;
+}
+
+.token-segment:hover {
+  filter: brightness(1.15);
+}
+
+.token-budget-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 6px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+
+/* 블록 목록 */
+.inspector-section {
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-section:last-child {
+  border-bottom: none;
+}
+
+.inspector-section-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin-bottom: 0.4rem;
+  color: var(--text-primary);
+}
+
+.block-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 0.72rem;
+}
+
+.block-kind {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.block-tokens {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+/* 로어 매칭 / 잘림 칩 */
+.id-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.id-chip {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.id-chip.lore { border-color: #4ade80; background: rgba(74, 222, 128, 0.1); }
+.id-chip.truncated { border-color: #f87171; background: rgba(248, 113, 113, 0.1); }
+
+/* 메타 정보 */
+.inspector-meta {
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.inspector-meta strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* 빈 Inspector 상태 */
+.inspector-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 0.78rem;
+}
+
+.inspector-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+  opacity: 0.5;
+}
+
+/* 어시스턴트 메시지의 프롬프트 보기 버튼 */
+.btn-show-prompt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 6px;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+
+.btn-show-prompt:hover {
+  background: rgba(0, 87, 255, 0.1);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* ============================================================
  * 프로필 관리 공통 스타일
  * [v1.0.0] ModelProfile, ChatProfile, Lorebook, Worldbook 공용
  * ============================================================ */

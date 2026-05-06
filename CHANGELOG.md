@@ -11,6 +11,15 @@
 
 ### 추가됨 (v1.0.0: VibeSmith 동적 페르소나 + Web 전환)
 
+- **프롬프트 Inspector**: 채팅 우측 패널에 탭 방식 Inspector 추가
+  - 토큰 예산 바 (세그먼트별 색상, 사용률 표시)
+  - 블록 구성 목록 (kind + 토큰 추정)
+  - 로어 매칭 결과 칩
+  - 잘린 히스토리 메시지 ID 칩
+  - 메타 정보 (프로필 ID, 모델 ID, 생성 시각)
+  - 어시스턴트 메시지의 [🔍 프롬프트] 버튼 → Inspector 자동 전환
+  - `GET /sessions/{id}/messages/{msg_id}/snapshot` 엔드포인트 신규
+
 - **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
 - **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조
   - Fixed Canon, Core Dynamic Model, Social & Relationship Model, Adaptive Behavior Rules

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 # 콜백 타입: delta 텍스트를 UI에 전달
 OnChunkCallback = Callable[[str], None]
-OnFinishCallback = Callable[[str, dict[str, object] | None], None]  # (full_text, usage)
+OnFinishCallback = Callable[[str, dict[str, object] | None, str], None]  # (full_text, usage, message_id)
 OnErrorCallback = Callable[[str], None]
 
 
@@ -274,7 +274,8 @@ class ChatService:
                     break
 
             # 어시스턴트 메시지 저장
-            self.save_assistant_message(session_id, full_text, assembled, last_usage)
+            # [v1.0.0] 저장된 메시지 ID를 on_finish에 전달하여 Inspector가 스냅샷을 조회할 수 있게 한다
+            saved_msg = self.save_assistant_message(session_id, full_text, assembled, last_usage)
 
             # [v1.0.0] 동적 상태 갱신 — 비차단, 실패 시 스트리밍 결과에 영향 없음
             await self._update_dynamic_state(session_id, full_text)
@@ -284,7 +285,7 @@ class ChatService:
             if session:
                 self._transition(session, "active")
 
-            on_finish(full_text, last_usage)
+            on_finish(full_text, last_usage, saved_msg.id)
 
         except asyncio.CancelledError:
             # 사용자가 취소함 → streaming → stopped
