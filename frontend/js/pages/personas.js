@@ -52,8 +52,11 @@ async function loadPersonas() {
           <span class="label">핵심 긴장:</span> ${escapeHtml(p.core_tension)}
         </div>
         <div class="persona-footer">
-          <span class="realism-badge">${p.realism_level}</span>
-          <span class="persona-status ${p.enabled ? '' : 'disabled'}">${p.enabled ? '활성' : '비활성'}</span>
+          <div>
+            <span class="realism-badge">${p.realism_level}</span>
+            <span class="persona-status ${p.enabled ? '' : 'disabled'}">${p.enabled ? '활성' : '비활성'}</span>
+          </div>
+          <button class="btn btn-sm btn-danger" onclick="deletePersona('${p.id}')">삭제</button>
         </div>
       </div>
     `).join('');
@@ -63,9 +66,25 @@ async function loadPersonas() {
 }
 
 /**
+ * [v1.0.0] 페르소나를 삭제한다.
+ * 참조 무결성 오류(409) 시 에러 토스트를 표시한다.
+ */
+async function deletePersona(id) {
+  if (!confirm('이 페르소나를 삭제하시겠습니까?')) return;
+  try {
+    await apiDelete(`/personas/${id}`);
+    showToast('페르소나가 삭제되었습니다.', 'success');
+    await loadPersonas();
+  } catch (err) {
+    showToast(`삭제 실패: ${err.message}`, 'error', 5000);
+  }
+}
+
+/**
  * Vibe Fill 생성 폼을 표시한다.
  */
 function showVibeFillForm() {
+
   const modal = document.getElementById('vibe-fill-modal');
   modal.style.display = 'flex';
   modal.innerHTML = `

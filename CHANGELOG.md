@@ -25,10 +25,17 @@
   - Lorebook/Worldbook → ChatProfile, ChatProfile/UserPersona → ChatSession
 - **설정 페이지 고도화 (DD-12)**: 4개 섹션으로 확장
   - 🌐 언어 설정: UI 로케일 + Vibe Fill 출력 언어
-  - 🎨 표시 설정: 테마 (light/dark 준비), 폰트 크기 (small/medium/large)
+  - 🎨 표시 설정: 다크/라이트 테마 전환, 폰트 크기 (small/medium/large)
   - ⚙️ 일반 설정: 스트리밍 활성화, 기본 Provider 선택
   - 🗂️ 데이터 관리: 앱 경로 표시, 설정 초기화
   - `POST /settings/reset` 엔드포인트 신규
+- **다크/라이트 테마 전환**: CSS 변수 이중 팔레트 (data-theme 속성)
+  - 다크 테마 기본, 라이트 테마 `[data-theme="light"]`로 전환
+  - 앱 시작 시 저장된 테마 자동 적용, 설정 저장 시 즉시 반영
+- **토스트 알림 시스템**: 전체 프론트엔드 `alert()` → `showToast()` 전환
+  - 4가지 타입: success, error, warning, info
+  - 삭제 성공/실패, 참조 무결성 에러(409) 등 시각적 피드백
+- **페르소나 삭제 UI**: 페르소나 카드에 삭제 버튼 추가
 
 - **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
 - **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조

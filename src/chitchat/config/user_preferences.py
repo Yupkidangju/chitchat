@@ -8,7 +8,7 @@
 # 지원 설정:
 # - ui_locale: UI 표시 언어 (ko, en, ja, zh_tw, zh_cn)
 # - vibe_output_language: Vibe Fill AI 출력 언어 (ko, en)
-# - theme: 테마 (light, dark) — v1.0.0에서는 light만 지원
+# - theme: 테마 (dark, light) — v1.0.0에서 이중 팔레트 지원
 # - font_size: UI 폰트 크기 (small, medium, large)
 # - streaming_enabled: 스트리밍 채팅 사용 여부
 # - default_provider_id: 기본 Provider 프로필 ID
@@ -28,7 +28,7 @@ _SETTINGS_FILENAME = "settings.json"
 _DEFAULTS: dict[str, str] = {
     "ui_locale": "ko",
     "vibe_output_language": "ko",
-    "theme": "light",
+    "theme": "dark",
     "font_size": "medium",
     "streaming_enabled": "true",
     "default_provider_id": "",

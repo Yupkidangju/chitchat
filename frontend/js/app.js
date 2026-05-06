@@ -99,6 +99,15 @@ async function init() {
     console.error('서버 연결 실패:', err);
   }
 
+  // [v1.0.0] 저장된 설정(테마, 폰트)을 로드하여 즉시 적용
+  try {
+    const settings = await apiGet('/settings');
+    if (settings.theme) applyTheme(settings.theme);
+    if (settings.font_size) applyFontSize(settings.font_size);
+  } catch {
+    // 설정 로드 실패 시 기본값 유지 (다크 테마, medium 폰트)
+  }
+
   // 기본 페이지 렌더링
   navigateTo(currentPage);
 }

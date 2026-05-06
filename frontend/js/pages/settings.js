@@ -67,8 +67,8 @@ async function renderSettings(container) {
       <div class="form-group">
         <label>테마</label>
         <select id="set-theme" class="input">
+          <option value="dark" ${settings.theme === 'dark' ? 'selected' : ''}>🌙 다크</option>
           <option value="light" ${settings.theme === 'light' ? 'selected' : ''}>☀️ 라이트</option>
-          <option value="dark" ${settings.theme === 'dark' ? 'selected' : ''}>🌙 다크 (향후 지원)</option>
         </select>
       </div>
       <div class="form-group">
@@ -138,8 +138,9 @@ async function renderSettings(container) {
         default_provider_id: document.getElementById('set-default-provider').value,
       });
 
-      // [v1.0.0] 폰트 크기 즉시 적용
+      // [v1.0.0] 폰트 크기 + 테마 즉시 적용
       applyFontSize(document.getElementById('set-font-size').value);
+      applyTheme(document.getElementById('set-theme').value);
 
       document.getElementById('settings-status').textContent = '✅ 저장 완료';
       setTimeout(() => {
@@ -156,8 +157,9 @@ async function renderSettings(container) {
     if (!confirm('모든 설정을 기본값으로 초기화하시겠습니까?')) return;
     try {
       await apiPost('/settings/reset', {});
-      // 폰트 크기 기본값 적용
+      // 폰트 크기 + 테마 기본값 적용
       applyFontSize('medium');
+      applyTheme('dark');
       // 페이지 새로고침하여 설정 반영
       await renderSettings(container);
     } catch (err) {
@@ -173,4 +175,16 @@ async function renderSettings(container) {
 function applyFontSize(size) {
   const sizeMap = { small: '13px', medium: '14px', large: '16px' };
   document.documentElement.style.setProperty('--font-size-base', sizeMap[size] || '14px');
+}
+
+/**
+ * [v1.0.0] 테마를 즉시 적용한다.
+ * document.documentElement의 data-theme 속성을 변경하여 CSS 변수를 전환한다.
+ */
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.documentElement.setAttribute('data-theme', 'light');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
 }
