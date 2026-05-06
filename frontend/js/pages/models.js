@@ -148,7 +148,7 @@ async function showModelProfileForm() {
       settings_json: document.getElementById('mp-settings').value || '{}',
     };
     if (!body.provider_profile_id || !body.model_id) {
-      alert('공급자와 모델을 선택해주세요.');
+      showToast('공급자와 모델을 선택해주세요.', 'warning');
       return;
     }
     try {
@@ -156,7 +156,7 @@ async function showModelProfileForm() {
       modal.style.display = 'none';
       await loadModelProfiles();
     } catch (err) {
-      alert(`오류: ${err.message}`);
+      showToast(`오류: ${err.message}`, 'error', 5000);
     }
   });
 }
@@ -165,8 +165,9 @@ async function deleteModelProfile(id) {
   if (!confirm('이 모델 프로필을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/model-profiles/${id}`);
+    showToast('모델 프로필이 삭제되었습니다.', 'success');
     await loadModelProfiles();
   } catch (err) {
-    alert(`삭제 실패: ${err.message}`);
+    showToast(`삭제 실패: ${err.message}`, 'error', 5000);
   }
 }

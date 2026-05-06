@@ -147,7 +147,7 @@ async function renderSettings(container) {
         if (statusEl) statusEl.textContent = '';
       }, 2000);
     } catch (err) {
-      alert(`저장 실패: ${err.message}`);
+      showToast(`저장 실패: ${err.message}`, 'error', 5000);
     }
   });
 
@@ -161,7 +161,7 @@ async function renderSettings(container) {
       // 페이지 새로고침하여 설정 반영
       await renderSettings(container);
     } catch (err) {
-      alert(`초기화 실패: ${err.message}`);
+      showToast(`초기화 실패: ${err.message}`, 'error', 5000);
     }
   });
 }

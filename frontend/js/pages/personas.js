@@ -129,7 +129,7 @@ function showVibeFillForm() {
         </div>
       `;
     } catch (err) {
-      alert(`생성 실패: ${err.message}`);
+      showToast(`생성 실패: ${err.message}`, 'error', 5000);
     } finally {
       submitBtn.disabled = false;
       submitBtn.textContent = '🎨 캐릭터 생성';

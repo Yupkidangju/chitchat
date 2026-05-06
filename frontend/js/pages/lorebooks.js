@@ -84,7 +84,7 @@ function showLorebookCreateModal() {
       });
       modal.style.display = 'none';
       await loadLorebooks();
-    } catch (err) { alert(`오류: ${err.message}`); }
+    } catch (err) { showToast(`오류: ${err.message}`, 'error', 5000); }
   });
 }
 
@@ -92,9 +92,10 @@ async function deleteLorebook(id) {
   if (!confirm('이 로어북을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/lorebooks/${id}`);
+    showToast('로어북이 삭제되었습니다.', 'success');
     await loadLorebooks();
     document.getElementById('lb-detail').style.display = 'none';
-  } catch (err) { alert(`삭제 실패: ${err.message}`); }
+  } catch (err) { showToast(`삭제 실패: ${err.message}`, 'error', 5000); }
 }
 
 /**
@@ -162,7 +163,7 @@ function showLoreEntryForm(lorebookId) {
       });
       modal.style.display = 'none';
       await showLoreEntries(lorebookId, '로어북');
-    } catch (err) { alert(`오류: ${err.message}`); }
+    } catch (err) { showToast(`오류: ${err.message}`, 'error', 5000); }
   });
 }
 
@@ -170,6 +171,7 @@ async function deleteLoreEntry(entryId, lorebookId, bookName) {
   if (!confirm('이 항목을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/lore-entries/${entryId}`);
+    showToast('항목이 삭제되었습니다.', 'success');
     await showLoreEntries(lorebookId, bookName);
-  } catch (err) { alert(`삭제 실패: ${err.message}`); }
+  } catch (err) { showToast(`삭제 실패: ${err.message}`, 'error', 5000); }
 }

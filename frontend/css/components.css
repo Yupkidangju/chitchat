@@ -198,6 +198,7 @@
 .toast-success { background: rgba(0, 184, 148, 0.9); color: #fff; }
 .toast-error { background: rgba(255, 107, 107, 0.9); color: #fff; }
 .toast-info { background: rgba(116, 185, 255, 0.9); color: #fff; }
+.toast-warning { background: rgba(253, 203, 110, 0.95); color: #2d3436; }
 
 @keyframes slideUp {
   from { transform: translateY(20px); opacity: 0; }

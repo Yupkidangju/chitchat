@@ -129,7 +129,7 @@ function showProviderForm(existing = null) {
       closeProviderForm();
       await loadProviders();
     } catch (err) {
-      alert(`오류: ${err.message}`);
+      showToast(`오류: ${err.message}`, 'error', 5000);
     }
   });
 }
@@ -141,18 +141,18 @@ function closeProviderForm() {
 async function testProvider(id) {
   try {
     const result = await apiPost(`/providers/${id}/test`, {});
-    alert(result.ok ? `✅ 연결 성공: ${result.message || 'OK'}` : `❌ 연결 실패: ${result.message}`);
+    showToast(result.ok ? `연결 성공: ${result.message || 'OK'}` : `연결 실패: ${result.message}`, result.ok ? 'success' : 'error', 4000);
   } catch (err) {
-    alert(`테스트 실패: ${err.message}`);
+    showToast(`테스트 실패: ${err.message}`, 'error', 5000);
   }
 }
 
 async function fetchModels(id) {
   try {
     const models = await apiPost(`/providers/${id}/fetch-models`, {});
-    alert(`✅ ${models.length}개 모델을 가져왔습니다.`);
+    showToast(`✅ ${models.length}개 모델을 가져왔습니다.`, 'success');
   } catch (err) {
-    alert(`모델 가져오기 실패: ${err.message}`);
+    showToast(`모델 가져오기 실패: ${err.message}`, 'error', 5000);
   }
 }
 
@@ -160,9 +160,10 @@ async function deleteProvider(id) {
   if (!confirm('이 공급자를 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/providers/${id}`);
+    showToast('공급자가 삭제되었습니다.', 'success');
     await loadProviders();
   } catch (err) {
-    alert(`삭제 실패: ${err.message}`);
+    showToast(`삭제 실패: ${err.message}`, 'error', 5000);
   }
 }
 

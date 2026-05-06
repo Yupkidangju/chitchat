@@ -545,7 +545,7 @@ async function showNewSessionModal() {
     let userPersonaId = document.getElementById('ns-user-persona').value;
 
     if (!chatProfileId) {
-      alert('채팅 프로필을 선택해주세요.');
+      showToast('채팅 프로필을 선택해주세요.', 'warning');
       return;
     }
 
@@ -558,7 +558,7 @@ async function showNewSessionModal() {
         });
         userPersonaId = up.id;
       } catch (err) {
-        alert(`사용자 페르소나 생성 실패: ${err.message}`);
+        showToast(`사용자 페르소나 생성 실패: ${err.message}`, 'error', 5000);
         return;
       }
     }
@@ -573,7 +573,7 @@ async function showNewSessionModal() {
       await loadSessions();
       await selectSession(session.id);
     } catch (err) {
-      alert(`세션 생성 실패: ${err.message}`);
+      showToast(`세션 생성 실패: ${err.message}`, 'error', 5000);
     }
   });
 }

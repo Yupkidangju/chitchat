@@ -142,7 +142,7 @@ async function showChatProfileForm() {
     e.preventDefault();
     const modelId = document.getElementById('cp-model').value;
     if (!modelId) {
-      alert('모델 프로필을 선택해주세요.');
+      showToast('모델 프로필을 선택해주세요.', 'warning');
       return;
     }
 
@@ -166,7 +166,7 @@ async function showChatProfileForm() {
       modal.style.display = 'none';
       await loadChatProfiles();
     } catch (err) {
-      alert(`오류: ${err.message}`);
+      showToast(`오류: ${err.message}`, 'error', 5000);
     }
   });
 }
@@ -175,8 +175,9 @@ async function deleteChatProfile(id) {
   if (!confirm('이 채팅 프로필을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/chat-profiles/${id}`);
+    showToast('채팅 프로필이 삭제되었습니다.', 'success');
     await loadChatProfiles();
   } catch (err) {
-    alert(`삭제 실패: ${err.message}`);
+    showToast(`삭제 실패: ${err.message}`, 'error', 5000);
   }
 }

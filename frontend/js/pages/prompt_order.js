@@ -149,8 +149,8 @@ async function savePromptOrder() {
       prompt_order_json: orderJson,
       system_base: profile.system_base,
     });
-    alert('✅ 프롬프트 순서가 저장되었습니다.');
+    showToast('프롬프트 순서가 저장되었습니다.', 'success');
   } catch (err) {
-    alert(`저장 실패: ${err.message}`);
+    showToast(`저장 실패: ${err.message}`, 'error', 5000);
   }
 }

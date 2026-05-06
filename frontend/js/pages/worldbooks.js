@@ -83,7 +83,7 @@ function showWorldbookCreateModal() {
       });
       modal.style.display = 'none';
       await loadWorldbooks();
-    } catch (err) { alert(`오류: ${err.message}`); }
+    } catch (err) { showToast(`오류: ${err.message}`, 'error', 5000); }
   });
 }
 
@@ -91,9 +91,10 @@ async function deleteWorldbook(id) {
   if (!confirm('이 월드북을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/worldbooks/${id}`);
+    showToast('월드북이 삭제되었습니다.', 'success');
     await loadWorldbooks();
     document.getElementById('wb-detail').style.display = 'none';
-  } catch (err) { alert(`삭제 실패: ${err.message}`); }
+  } catch (err) { showToast(`삭제 실패: ${err.message}`, 'error', 5000); }
 }
 
 async function showWorldEntries(worldbookId, bookName) {
@@ -155,7 +156,7 @@ function showWorldEntryForm(worldbookId) {
       });
       modal.style.display = 'none';
       await showWorldEntries(worldbookId, '월드북');
-    } catch (err) { alert(`오류: ${err.message}`); }
+    } catch (err) { showToast(`오류: ${err.message}`, 'error', 5000); }
   });
 }
 
@@ -163,6 +164,7 @@ async function deleteWorldEntry(entryId, worldbookId, bookName) {
   if (!confirm('이 항목을 삭제하시겠습니까?')) return;
   try {
     await apiDelete(`/world-entries/${entryId}`);
+    showToast('항목이 삭제되었습니다.', 'success');
     await showWorldEntries(worldbookId, bookName);
-  } catch (err) { alert(`삭제 실패: ${err.message}`); }
+  } catch (err) { showToast(`삭제 실패: ${err.message}`, 'error', 5000); }
 }
