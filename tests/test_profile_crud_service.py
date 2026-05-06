@@ -1,8 +1,10 @@
 # tests/test_profile_crud_service.py
 # [v0.1.0b0] ProfileService CRUD 통합 테스트
 #
-# in-memory SQLite에서 ProfileService의 7종 엔티티 CRUD를 검증한다.
+# [v1.0.0] 참조 무결성 검증 테스트 추가
 from __future__ import annotations
+
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from chitchat.db.models import Base
@@ -117,3 +119,114 @@ class TestChatProfileCrud:
             ai_persona_ids=[], lorebook_ids=[], worldbook_ids=[],
             prompt_order_json='[]', system_base="")
         assert svc.delete_chat_profile(cp.id) is True
+
+
+# --- [v1.0.0] 참조 무결성 검증 테스트 ---
+
+
+class TestReferentialIntegrity:
+    """[v1.0.0] 프로필 삭제 시 연관 참조 무결성 검사 테스트.
+
+    ChatProfile이나 ChatSession에서 참조 중인 엔티티 삭제를 차단하는지 검증한다.
+    """
+
+    def _make_full_service(self):
+        """ProfileService와 RepositoryRegistry를 함께 반환한다."""
+        engine = create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        sf = sessionmaker(bind=engine)
+        repos = RepositoryRegistry(sf)
+        return ProfileService(repos), repos
+
+    def test_delete_ai_persona_blocked_by_chat_profile(self) -> None:
+        """AIPersona가 ChatProfile에서 참조 중이면 삭제 차단."""
+        svc, _ = self._make_full_service()
+        ai = svc.save_ai_persona(name="AI", role_name="R", personality="P", speaking_style="S")
+        svc.save_chat_profile(
+            name="프로필A", model_profile_id="mp_1",
+            ai_persona_ids=[ai.id], lorebook_ids=[], worldbook_ids=[],
+            prompt_order_json='[]', system_base="",
+        )
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_ai_persona(ai.id)
+
+    def test_delete_lorebook_blocked_by_chat_profile(self) -> None:
+        """Lorebook이 ChatProfile에서 참조 중이면 삭제 차단."""
+        svc, _ = self._make_full_service()
+        lb = svc.save_lorebook(name="참조대상")
+        svc.save_chat_profile(
+            name="프로필B", model_profile_id="mp_1",
+            ai_persona_ids=[], lorebook_ids=[lb.id], worldbook_ids=[],
+            prompt_order_json='[]', system_base="",
+        )
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_lorebook(lb.id)
+
+    def test_delete_worldbook_blocked_by_chat_profile(self) -> None:
+        """Worldbook이 ChatProfile에서 참조 중이면 삭제 차단."""
+        svc, _ = self._make_full_service()
+        wb = svc.save_worldbook(name="참조월드")
+        svc.save_chat_profile(
+            name="프로필C", model_profile_id="mp_1",
+            ai_persona_ids=[], lorebook_ids=[], worldbook_ids=[wb.id],
+            prompt_order_json='[]', system_base="",
+        )
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_worldbook(wb.id)
+
+    def test_delete_model_profile_blocked_by_chat_profile(self) -> None:
+        """ModelProfile이 ChatProfile에서 참조 중이면 삭제 차단."""
+        svc, _ = self._make_full_service()
+        mp = svc.save_model_profile(
+            name="모델A", provider_profile_id="prov_1",
+            model_id="test-model", settings_json='{}',
+        )
+        svc.save_chat_profile(
+            name="프로필D", model_profile_id=mp.id,
+            ai_persona_ids=[], lorebook_ids=[], worldbook_ids=[],
+            prompt_order_json='[]', system_base="",
+        )
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_model_profile(mp.id)
+
+    def test_delete_chat_profile_blocked_by_session(self) -> None:
+        """ChatProfile이 ChatSession에서 참조 중이면 삭제 차단."""
+        from chitchat.db.models import ChatSessionRow
+        svc, repos = self._make_full_service()
+        cp = svc.save_chat_profile(
+            name="세션참조", model_profile_id="mp_1",
+            ai_persona_ids=[], lorebook_ids=[], worldbook_ids=[],
+            prompt_order_json='[]', system_base="",
+        )
+        # 세션 직접 생성
+        session_row = ChatSessionRow(
+            id="sess_1", title="테스트세션", status="active",
+            chat_profile_id=cp.id, user_persona_id="up_1",
+            created_at="2026-01-01T00:00:00Z", updated_at="2026-01-01T00:00:00Z",
+        )
+        repos.chat_sessions.upsert(session_row)
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_chat_profile(cp.id)
+
+    def test_delete_user_persona_blocked_by_session(self) -> None:
+        """UserPersona가 ChatSession에서 참조 중이면 삭제 차단."""
+        from chitchat.db.models import ChatSessionRow
+        svc, repos = self._make_full_service()
+        up = svc.save_user_persona(name="유저A", description="설명")
+        # 세션 직접 생성
+        session_row = ChatSessionRow(
+            id="sess_2", title="테스트세션2", status="active",
+            chat_profile_id="cp_1", user_persona_id=up.id,
+            created_at="2026-01-01T00:00:00Z", updated_at="2026-01-01T00:00:00Z",
+        )
+        repos.chat_sessions.upsert(session_row)
+        with pytest.raises(ValueError, match="사용 중"):
+            svc.delete_user_persona(up.id)
+
+    def test_delete_unreferenced_entity_succeeds(self) -> None:
+        """참조되지 않은 엔티티는 정상 삭제."""
+        svc, _ = self._make_full_service()
+        ai = svc.save_ai_persona(name="미참조", role_name="R", personality="P", speaking_style="S")
+        assert svc.delete_ai_persona(ai.id) is True
+        assert svc.get_ai_persona(ai.id) is None
+

@@ -114,3 +114,62 @@ def test_save_creates_directory(tmp_path: Path) -> None:
 
     settings_file = nested_dir / "settings.json"
     assert settings_file.exists()
+
+
+# --- [v1.0.0] 확장 설정 필드 ---
+
+
+def test_extended_defaults() -> None:
+    """[v1.0.0] 확장 설정 필드의 기본값 검증."""
+    prefs = UserPreferences.instance()
+    assert prefs.theme == "light"
+    assert prefs.font_size == "medium"
+    assert prefs.streaming_enabled is True
+    assert prefs.default_provider_id == ""
+
+
+def test_extended_setters() -> None:
+    """[v1.0.0] 확장 설정 필드의 setter 검증."""
+    prefs = UserPreferences.instance()
+    prefs.theme = "dark"
+    prefs.font_size = "large"
+    prefs.streaming_enabled = False
+    prefs.default_provider_id = "prov_abc"
+
+    assert prefs.theme == "dark"
+    assert prefs.font_size == "large"
+    assert prefs.streaming_enabled is False
+    assert prefs.default_provider_id == "prov_abc"
+
+
+def test_extended_save_and_load(tmp_app_dir: Path) -> None:
+    """[v1.0.0] 확장 설정 필드의 저장/로드 검증."""
+    prefs = UserPreferences.instance()
+    prefs.theme = "dark"
+    prefs.font_size = "small"
+    prefs.streaming_enabled = False
+    prefs.default_provider_id = "prov_xyz"
+    prefs.save(tmp_app_dir)
+
+    UserPreferences.reset()
+    prefs2 = UserPreferences.instance()
+    prefs2.load(tmp_app_dir)
+
+    assert prefs2.theme == "dark"
+    assert prefs2.font_size == "small"
+    assert prefs2.streaming_enabled is False
+    assert prefs2.default_provider_id == "prov_xyz"
+
+
+def test_reset_restores_defaults() -> None:
+    """[v1.0.0] reset() 후 확장 필드가 기본값으로 복원되는지 검증."""
+    prefs = UserPreferences.instance()
+    prefs.theme = "dark"
+    prefs.streaming_enabled = False
+
+    UserPreferences.reset()
+    prefs2 = UserPreferences.instance()
+
+    assert prefs2.theme == "light"
+    assert prefs2.streaming_enabled is True
+
