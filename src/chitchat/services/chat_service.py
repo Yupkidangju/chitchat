@@ -1,9 +1,10 @@
 # src/chitchat/services/chat_service.py
-# [v0.1.0b0] 채팅 스트리밍 서비스
+# [v1.0.0] 채팅 스트리밍 서비스
 #
+# [v0.1.0b0 → v1.0.0 변경사항]
+# - DynamicStateEngine 주입: 스트리밍 완료 후 캐릭터 동적 상태 자동 갱신
+# - 기억/관계/감정 변화를 ZSTD 압축 blob으로 SQLite에 영속화
 # 스트리밍 실행/취소, 세션 상태 전이, 메시지 저장을 관리한다.
-# asyncio Task로 Provider의 stream_chat()을 호출하고,
-# 매 chunk마다 콜백을 호출하여 UI에 전달한다.
 from __future__ import annotations
 import asyncio
 import json
@@ -20,6 +21,7 @@ from chitchat.domain.provider_contracts import (
 )
 from chitchat.providers.registry import ProviderRegistry
 from chitchat.secrets.key_store import KeyStore
+from chitchat.services.dynamic_state_engine import DynamicStateEngine
 from chitchat.services.prompt_service import PromptService
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,7 @@ class ChatService:
     """채팅 스트리밍 서비스.
 
     세션 생성, 메시지 저장, 스트리밍 실행/취소를 관리한다.
+    [v1.0.0] DynamicStateEngine을 통해 매 턴 후 캐릭터 상태를 갱신한다.
     """
     def __init__(
         self,
@@ -41,11 +44,13 @@ class ChatService:
         providers: ProviderRegistry,
         key_store: KeyStore,
         prompt_service: PromptService,
+        dynamic_state_engine: DynamicStateEngine | None = None,
     ) -> None:
         self._repos = repos
         self._providers = providers
         self._key_store = key_store
         self._prompt_svc = prompt_service
+        self._dse = dynamic_state_engine
         self._current_task: asyncio.Task | None = None  # type: ignore[type-arg]
 
     # --- 세션 관리 ---
@@ -271,6 +276,9 @@ class ChatService:
             # 어시스턴트 메시지 저장
             self.save_assistant_message(session_id, full_text, assembled, last_usage)
 
+            # [v1.0.0] 동적 상태 갱신 — 비차단, 실패 시 스트리밍 결과에 영향 없음
+            await self._update_dynamic_state(session_id, full_text)
+
             # streaming → active 전이
             session = self._repos.chat_sessions.get_by_id(session_id)
             if session:
@@ -294,7 +302,111 @@ class ChatService:
 
     # [v0.1.0b0 Remediation] run_stream(), stop_stream() 삭제
     # 삭제 사유: threading 기반 스트리밍은 ui/async_bridge.py의 AsyncSignalBridge로 대체.
-    #   Service 계층에 threading 로직이 있으면 UI/Service 분리 원칙 위반.
-    #   start_stream()은 async def이므로 UI에서 AsyncSignalBridge를 통해 호출한다.
     # 삭제 버전: v0.1.0b0 정합성 감사 Remediation
 
+    # --- 동적 상태 갱신 ---
+
+    async def _update_dynamic_state(self, session_id: str, assistant_text: str) -> None:
+        """스트리밍 완료 후 캐릭터 동적 상태를 갱신한다.
+
+        [v1.0.0] DynamicStateEngine을 호출하여 관계/기억/감정 변화를 반영하고,
+        ZSTD 압축 blob으로 SQLite에 영속화한다.
+        실패 시 로그만 남기고 채팅 흐름에 영향을 주지 않는다.
+        """
+        if not self._dse:
+            return
+
+        try:
+            from chitchat.db.models import DynamicStateRow
+
+            # 세션에서 캐릭터 ID 추출
+            session = self._repos.chat_sessions.get_by_id(session_id)
+            if not session:
+                return
+
+            # ChatProfile에서 AI Persona ID를 가져옴
+            cp = self._repos.chat_profiles.get_by_id(session.chat_profile_id)
+            if not cp:
+                return
+
+            character_id = cp.ai_persona_id
+            if not character_id:
+                logger.debug("AI 페르소나 미설정 — 동적 상태 갱신 생략")
+                return
+
+            # 기존 동적 상태 로드 또는 생성
+            ds_row = self._repos.dynamic_states.get_by_character_session(
+                character_id, session_id,
+            )
+
+            if ds_row:
+                state = self._dse.decompress_state(ds_row.state_blob)
+            else:
+                state = self._dse.create_initial_state(character_id, session_id)
+
+            # 턴 카운트 증가
+            self._dse.increment_turn(state)
+
+            # 간단한 키워드 기반 기억 트리거 분석
+            # (향후 AI 기반 분석으로 교체 예정)
+            self._analyze_and_update(state, assistant_text)
+
+            # ZSTD 압축 후 DB 저장
+            blob = self._dse.compress_state(state)
+            if ds_row:
+                ds_row.state_blob = blob
+                ds_row.version = state.version
+                ds_row.turn_count = state.turn_count
+                self._repos.dynamic_states.upsert(ds_row)
+            else:
+                new_row = DynamicStateRow(
+                    id=new_id("ds_"),
+                    character_id=character_id,
+                    session_id=session_id,
+                    state_blob=blob,
+                    version=state.version,
+                    turn_count=state.turn_count,
+                )
+                self._repos.dynamic_states.upsert(new_row)
+
+            logger.info(
+                "동적 상태 갱신 완료: 캐릭터=%s, 세션=%s, 턴=%d",
+                character_id, session_id, state.turn_count,
+            )
+
+        except Exception:
+            # 동적 상태 갱신 실패는 채팅에 영향을 주지 않는다
+            logger.exception("동적 상태 갱신 실패 (비차단)")
+
+    def _analyze_and_update(
+        self,
+        state: "DynamicCharacterState",  # noqa: F821
+        text: str,
+    ) -> None:
+        """AI 응답에서 기억 트리거와 관계 변화를 분석한다.
+
+        [v1.0.0] 1차 구현: 키워드 기반 사전 필터링.
+        향후 AI 판단 기반 분석으로 확장 예정.
+        """
+        if not self._dse:
+            return
+
+        # 키워드 → 트리거 매핑
+        keyword_triggers = {
+            "약속": ("promise_kept", {"trust": 3}),
+            "고마워": ("praise", {"trust": 2, "familiarity": 1}),
+            "감사": ("praise", {"trust": 2, "familiarity": 1}),
+            "미안": ("conflict_repair", {"repair_ability": 2}),
+            "비밀": ("vulnerability", {"emotional_reliance": 3, "fear_of_rejection": -2}),
+            "처음으로": ("shared_experience", {"familiarity": 3, "willingness_to_initiate": 2}),
+            "함께": ("shared_experience", {"familiarity": 2}),
+        }
+
+        for keyword, (trigger, changes) in keyword_triggers.items():
+            if keyword in text:
+                self._dse.add_memory(
+                    state, trigger, f"대화에서 '{keyword}' 관련 상호작용 감지",
+                    emotional_impact=", ".join(f"{k}{v:+d}" for k, v in changes.items()),
+                )
+                self._dse.update_relationship(state, changes)
+                logger.debug("트리거 감지: %s → %s", keyword, trigger)

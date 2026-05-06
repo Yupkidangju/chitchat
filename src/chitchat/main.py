@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import uvicorn
 
-from pathlib import Path
 
 from chitchat.api.app import APP_DATA_DIR, create_app
 from chitchat.logging_config import setup_logging

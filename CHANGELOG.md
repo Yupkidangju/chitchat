@@ -21,6 +21,28 @@
 - **SQLite+ZSTD 동적 상태 저장**: 동적 요소를 압축하여 별도 테이블에 영속화
 - **프롬프트 어셈블러 v2**: 동적 상태 블록을 프롬프트 조립 시 자동 주입
 - **WebSocket 스트리밍 채팅**: FastAPI WebSocket을 통한 실시간 AI 응답 수신
+- **프론트엔드 SPA 모듈**: Neo-Brutal 디자인 시스템 기반 5개 페이지 완성
+  - `providers.js`: Provider CRUD + 연결 테스트 + 모델 가져오기
+  - `personas.js`: VibeSmith 페르소나 관리 + Vibe Fill 생성 폼
+  - `chat.js`: 2패널 세션 목록 + WebSocket 실시간 채팅
+  - `settings.js`: UI 언어 / Vibe Fill 출력 언어 설정
+  - `api.js`: REST API 공통 클라이언트 유틸리티
+- **서비스 레이어 연결**: ChatService, PromptService를 app.state에 등록
+- **PersonaCardRepository**: VibeSmith 페르소나 카드 CRUD 리포지토리 추가
+- **채팅 세션 CRUD API**: /api/sessions 엔드포인트 실제 DB 연동
+- **Vibe Fill AI 생성 연결**: /api/personas/vibe-fill이 실제 VibeFillService를 호출하여 AI 페르소나 생성 + DB 자동 저장
+- **VibeFillService + DynamicStateEngine**: app.state에 등록하여 라우트에서 접근 가능
+- **레거시 테스트 전면 재작성**: VibeFillResult(fields) → VibeFillResult(persona_data) 9섹션 구조 반영
+- **DynamicStateRepository**: ZSTD 압축 blob 기반 동적 상태 CRUD 리포지토리 추가
+- **ChatService ↔ DynamicStateEngine 통합**: 스트리밍 완료 후 자동 동적 상태 갱신 (기억/관계/감정) + ZSTD 영속화
+- **동적 상태 REST API**: `/api/sessions/{id}/dynamic-state` — ZSTD blob 해동 후 JSON 응답
+- **프론트엔드 동적 상태 패널**: 채팅 우측 3컬럼 레이아웃, 관계 바 차트 + 기억 로그, 스트리밍 완료 시 자동 갱신
+- **implementation_summary.md 동기화**: v0.3.0 PySide6 → v1.0.0 FastAPI+SPA 아키텍처 반영
+
+### 수정됨 (v1.0.0)
+
+- **SQLite 마이그레이션 데드락 해결**: `run_migrations`를 `sqlite3` stdlib 기반으로 전환하여 SQLAlchemy pool 잠금 데드락 방지 (DD-17)
+- **Alembic fileConfig 블로킹 수정**: uvicorn 내에서 fileConfig가 로거를 파괴하는 문제를 환경변수 조건부 호출로 해결
 
 ### 제거됨 (v1.0.0)
 

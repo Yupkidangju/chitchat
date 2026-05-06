@@ -445,3 +445,116 @@ spec.md §11.1에 따라 모델이 지원하지 않는 파라미터는 UI에서 
 - `model_profile_page.py`에서 `_on_model_changed()` 슬롯 추가
 - `model_cache` DB에 `supported_parameters_json` 필드 참조
 - LM Studio 등 capability 정보가 불완전한 경우 모든 파라미터를 표시하되 경고 표시
+
+---
+
+## DD-15: v1.0.0 풀스택 아키텍처 전환
+
+### 배경
+
+PySide6 데스크톱 앱의 크로스플랫폼 빌드 관리, Qt 이벤트 루프와 asyncio 통합의 복잡도, 그리고 모바일/웹 접근성 부재가 개발 병목이 되었다.
+
+### 결정
+
+**PySide6 UI를 완전히 제거하고, FastAPI 백엔드 + 순수 HTML/CSS/JS SPA 프론트엔드로 전환한다.**
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| PySide6 유지 + Tauri 래핑 | Rust 빌드 체인 추가, 복잡도만 증가 |
+| Flet (Flutter 래퍼) | 추가 런타임 의존, Python 네이티브가 아님 |
+| Electron + Python 백엔드 | Node.js 의존 추가, 메모리 사용량 과다 |
+| Gradio/Streamlit | 커스텀 UI 제어 불가, 프로덕션 품질 부족 |
+
+### 결과
+
+- FastAPI (`uvicorn`) 서버가 REST API + WebSocket + 정적 파일을 서빙
+- 프론트엔드는 `frontend/` 디렉토리에 순수 HTML/CSS/JS SPA로 구현
+- `qasync`, `AsyncSignalBridge` 등 Qt-asyncio 브리지 코드 제거
+- DD-06, DD-09의 결정이 대체됨: WebSocket이 스트리밍 통신을 직접 처리
+
+---
+
+## DD-16: VibeSmith 9섹션 동적 캐릭터 시스템
+
+### 배경
+
+기존 14개 필드 AI 페르소나는 정적이며, 대화 과정에서 관계 변화, 기억 형성, 감정 변동이 반영되지 않았다.
+
+### 결정
+
+**VibeSmith 9섹션 PersonaCard + DynamicCharacterState 분리 아키텍처를 채택한다.** 원본 캐릭터는 MD 문서로 보존하고, 동적 상태는 ZSTD 압축 후 SQLite에 저장한다.
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| 기존 14개 필드 확장 | 동적 상태(관계, 기억)가 정적 스키마에 맞지 않음 |
+| 전체를 JSON 파일로 관리 | 동시 접근, 트랜잭션, 인덱싱 불가 |
+| Redis/외부 캐시 | 로컬 앱에 외부 서비스 의존 과잉 |
+
+### 결과
+
+- `PersonaCardRow`: 9섹션 메타데이터 + `persona_json` (전체 JSON)
+- `DynamicStateRow`: ZSTD 압축 바이너리 (`state_blob`), 세션별 버전 관리
+- `MemoryRow`: 기억 엔트리 (트리거 타입, 감정 임팩트)
+- `DynamicStateEngine`: 매 AI 응답 후 상태 갱신 → 프롬프트에 동적 주입
+- 관계 상태 변수 9개: trust, familiarity, emotional_reliance, conflict_level 등
+
+---
+
+## DD-17: Alembic 마이그레이션 SQLite 데드락 해결
+
+### 배경
+
+`run_migrations(engine)` 함수가 `inspect(engine)`으로 테이블 정보를 수집한 후 `command.upgrade`를 호출하는 과정에서, SQLAlchemy의 connection pool이 잠금을 유지하여 Alembic의 새 connection이 무한 대기하는 SQLite 데드락이 발생했다.
+
+추가로, Alembic `env.py`의 `fileConfig(config.config_file_name)`이 Python `logging`의 root logger를 재설정하면서 uvicorn의 내부 로거를 파괴하여 서버 시작 자체가 블로킹되는 문제가 있었다.
+
+### 결정
+
+1. **`run_migrations`의 시그니처를 `(engine: Engine)` → `(db_path: Path)`로 변경** — SQLAlchemy pool과 완전히 독립된 `sqlite3` stdlib으로 테이블 정보를 수집한다.
+2. **`env.py`의 `fileConfig` 호출을 조건부로 변경** — 환경변수 `CHITCHAT_PROGRAMMATIC_ALEMBIC`이 설정되면 `fileConfig`를 건너뛴다.
+3. **마이그레이션을 engine 생성 전에 실행** — `run_migrations(db_path)` → `create_db_engine(db_path)` → `create_session_factory(engine)` 순서.
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| `engine.dispose()` 후 upgrade | dispose 후에도 WAL shm 파일이 잠금을 유지할 수 있음 |
+| `with engine.connect()` 후 upgrade | context manager 종료 후에도 pool에 connection이 반환되어 WAL 잠금 유지 |
+| Alembic을 별도 프로세스로 실행 | IPC 복잡도, 에러 핸들링 어려움 |
+
+### 결과
+
+- `migrations.py`: `sqlite3.connect()` → PRAGMA/inspect → `conn.close()` → Alembic upgrade
+- `env.py`: `os.environ.get("CHITCHAT_PROGRAMMATIC_ALEMBIC")` 체크로 fileConfig 건너뛰기
+- `app.py`: `run_migrations(db_path)` → `create_db_engine(db_path)` → `create_session_factory(engine)`
+
+## DD-18: DynamicStateEngine ↔ ChatService 비차단 통합
+
+### 배경
+
+VibeSmith 9섹션 캐릭터 시스템은 대화가 진행되면서 관계/기억/감정이 동적으로 변화해야 한다. 이 변화를 매 턴마다 반영하되, 갱신 실패가 채팅 흐름을 차단해서는 안 된다.
+
+### 결정
+
+1. **DynamicStateEngine을 ChatService에 optional 주입** — `__init__`의 마지막 매개변수로 `DynamicStateEngine | None`을 받는다. None이면 갱신을 건너뛴다.
+2. **스트리밍 완료 → `_update_dynamic_state()` 비차단 호출** — 어시스턴트 메시지 저장 직후, `streaming → active` 전이 이전에 호출한다. 전체를 `try/except`로 감싸서 실패 시 `logger.exception`만 남긴다.
+3. **키워드 기반 1차 분석 → 향후 AI 판단으로 교체** — 현재는 `_analyze_and_update()`에서 7개 한국어 키워드를 매칭하여 기억 트리거와 관계 변수를 조정한다. 향후 별도 AI 분석 프롬프트로 교체 예정.
+4. **ZSTD 압축 blob으로 SQLite 영속화** — `DynamicStateRepository.upsert()`로 `dynamic_states` 테이블에 저장한다.
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| 별도 background task로 분리 | 턴 동기화 보장 어려움, 상태 경합 위험 |
+| WebSocket 메시지에 상태 변경 포함 | 프로토콜 복잡도 증가, 클라이언트가 상태를 관리해야 함 |
+| 매 N턴마다만 갱신 | 중요한 순간을 놓칠 수 있음 |
+
+### 결과
+
+- `chat_service.py`: `start_stream()` 내부에서 `await self._update_dynamic_state()` 호출
+- `api/routes/chat.py`: `GET /sessions/{id}/dynamic-state`로 ZSTD 해동 후 JSON 조회
+- `frontend/js/pages/chat.js`: 스트리밍 `done` 시 `refreshDynamicState()` 자동 호출

@@ -116,10 +116,9 @@ class TestSC10_BuildReady:
     """SC-10: 빌드 준비 상태 확인."""
     def test_all_imports_resolve(self) -> None:
         """모든 핵심 모듈이 import 가능한지 확인한다."""
-        # [v0.1.4] 빈 테스트였던 것을 실제 import 검증으로 보강
+        # [v1.0.0] PySide6 UI 모듈 제거, FastAPI 모듈 추가
         import importlib
         core_modules = [
-            "chitchat.app",
             "chitchat.config.paths",
             "chitchat.config.settings",
             "chitchat.db.engine",
@@ -132,26 +131,34 @@ class TestSC10_BuildReady:
             "chitchat.domain.prompt_assembler",
             "chitchat.domain.lorebook_matcher",
             "chitchat.domain.chat_session",
+            "chitchat.domain.vibesmith_persona",
+            "chitchat.domain.dynamic_state",
             "chitchat.providers.base",
             "chitchat.providers.registry",
             "chitchat.providers.capability_mapper",
             "chitchat.secrets.key_store",
             "chitchat.services.provider_service",
-            "chitchat.services.profile_service",
             "chitchat.services.prompt_service",
             "chitchat.services.chat_service",
+            "chitchat.services.dynamic_state_engine",
+            "chitchat.api.app",
+            "chitchat.api.routes.providers",
+            "chitchat.api.routes.personas",
+            "chitchat.api.routes.chat",
+            "chitchat.api.routes.settings",
+            "chitchat.api.routes.health",
         ]
         for mod in core_modules:
             importlib.import_module(mod)
 
     def test_pyproject_version(self) -> None:
-        """pyproject.toml의 버전이 0.3.0인지 확인한다."""
+        """pyproject.toml의 버전이 1.0.0인지 확인한다."""
         import tomllib
         from pathlib import Path
         toml_path = Path(__file__).parent.parent / "pyproject.toml"
         with open(toml_path, "rb") as f:
             data = tomllib.load(f)
-        assert data["project"]["version"] == "0.3.0"
+        assert data["project"]["version"] == "1.0.0"
 
     def test_required_docs_exist(self) -> None:
         """필수 문서 파일이 존재하는지 확인한다."""
@@ -164,3 +171,71 @@ class TestSC10_BuildReady:
         ]
         for doc in required:
             assert (root / doc).exists(), f"필수 문서 누락: {doc}"
+
+
+class TestSC11_DynamicStateEngine:
+    """SC-11: DynamicStateEngine ZSTD 압축/해동 라운드트립 + DB 영속화."""
+
+    def test_상태_생성_압축_해동(self) -> None:
+        """초기 상태 생성 → ZSTD 압축 → 해동 → 데이터 일치 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        state = dse.create_initial_state("char_001", "sess_001")
+
+        # 기억 추가
+        dse.add_memory(state, "praise", "테스트 칭찬", "trust+2")
+        dse.increment_turn(state)
+
+        # 압축 → 해동
+        blob = dse.compress_state(state)
+        assert isinstance(blob, bytes)
+        assert len(blob) > 0
+
+        restored = dse.decompress_state(blob)
+        assert restored.character_id == "char_001"
+        assert restored.session_id == "sess_001"
+        assert restored.turn_count == 1
+        assert len(restored.memories) == 1
+        assert restored.memories[0].trigger_type == "praise"
+
+    def test_관계_변수_갱신_범위_제한(self) -> None:
+        """관계 변수 갱신이 0~100 범위를 벗어나지 않는지 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        state = dse.create_initial_state("char_002", "sess_002")
+
+        # trust 초기값(30)에 +200 → 100으로 클램핑
+        dse.update_relationship(state, {"trust": 200})
+        assert state.relationship_state.trust == 100
+
+        # trust에 -300 → 0으로 클램핑
+        dse.update_relationship(state, {"trust": -300})
+        assert state.relationship_state.trust == 0
+
+    def test_DB_영속화_라운드트립(self) -> None:
+        """DynamicStateRepository를 통한 DB 저장/조회 라운드트립."""
+        from chitchat.db.models import DynamicStateRow
+        from chitchat.domain.ids import new_id
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+
+        repos = _make_repos()
+        dse = DynamicStateEngine()
+        state = dse.create_initial_state("char_003", "sess_003")
+        dse.add_memory(state, "shared_experience", "함께 커피를 마심")
+        dse.increment_turn(state)
+
+        blob = dse.compress_state(state)
+        row = DynamicStateRow(
+            id=new_id("ds_"), character_id="char_003",
+            session_id="sess_003", state_blob=blob,
+            version=state.version, turn_count=state.turn_count,
+        )
+        repos.dynamic_states.upsert(row)
+
+        # 조회
+        loaded = repos.dynamic_states.get_by_session("sess_003")
+        assert loaded is not None
+        restored = dse.decompress_state(loaded.state_blob)
+        assert restored.turn_count == 1
+        assert len(restored.memories) == 1
+

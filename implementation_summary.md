@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 문서 버전: `v0.3.0`
-- 상위 문서: `spec.md v0.3.0`
+- 문서 버전: `v1.0.0`
+- 상위 문서: `spec.md v1.0`
 - 목적: 구현자가 이 문서를 읽고 첫 코드를 열었을 때, 어디서 시작하고 어떤 순서로 무엇을 만들지 바로 판단할 수 있어야 한다.
 
 ---
@@ -12,26 +12,25 @@
 
 ```txt
 main.py
-→ create_app()
-→ load Settings (pydantic-settings, 환경변수 + .env)
-→ ensure app data directory (OS별 분기: Windows %APPDATA%, macOS ~/Library, Linux XDG_DATA_HOME)
-→ create SQLite engine (SQLAlchemy 2.0, sqlite:///chitchat.sqlite3)
-→ run_migrations(engine) (v0.2.0: Alembic 단독으로 스키마 생성/업그레이드 일원화)
-→ create RepositoryRegistry (모든 테이블 Repository 단일 진입점)
-→ create ProviderRegistry (Gemini/OpenRouter/LMStudio adapter 등록)
-→ create ServiceRegistry (ProviderService, ProfileService, ModelService, PromptService, ChatService, VibeFillService)
-→ create MainWindow (QMainWindow, sidebar + status bar + QStackedWidget)
-→ show MainWindow
-→ QApplication.exec()
+  → create_app()  (FastAPI)
+  → run_migrations(db_path)  (Alembic 프로그래밍 방식, sqlite3 stdlib)
+  → create_db_engine(db_path)  (SQLAlchemy 2.0)
+  → RepositoryRegistry(session_factory)
+  → ProviderRegistry()  (Gemini/OpenRouter/LMStudio adapter)
+  → ServiceRegistry:
+      - ProviderService, PromptService, ChatService(+DynamicStateEngine), VibeFillService
+  → app.state에 모든 서비스 등록
+  → StaticFiles 마운트 (frontend/)
+  → uvicorn.run(app)
 ```
 
 종료 흐름:
 
 ```txt
-MainWindow closeEvent
-→ ChatService: 진행 중 스트리밍 취소 (asyncio Task cancel)
-→ DB engine dispose
-→ QApplication quit
+SIGINT / SIGTERM
+  → FastAPI lifespan shutdown
+  → DB engine dispose
+  → 서버 종료
 ```
 
 ---
@@ -40,15 +39,14 @@ MainWindow closeEvent
 
 | 시스템 | 계층 | 책임 | 의존 |
 |---|---|---|---|
-| Config | config/ | OS별 app data 경로, Settings 로딩 | pydantic-settings |
-| Database | db/ | SQLAlchemy ORM 모델, Repository CRUD, Alembic 마이그레이션 인프라 | SQLAlchemy, Alembic |
-| Domain | domain/ | 타입 계약(Pydantic 모델), ID 생성, 프롬프트 조립, 로어북 매칭 | pydantic |
+| Config | config/ | OS별 app data 경로, Settings/UserPreferences 로딩 | pydantic-settings |
+| Database | db/ | SQLAlchemy ORM 모델, Repository CRUD, Alembic 마이그레이션 | SQLAlchemy, Alembic |
+| Domain | domain/ | 타입 계약, ID 생성, 프롬프트 조립, VibeSmith 페르소나, 동적 상태 | pydantic |
 | Providers | providers/ | ChatProvider Protocol 구현 3종, CapabilityMapper | httpx, google-genai |
 | Secrets | secrets/ | OS keyring 래퍼, secret_ref 기반 CRUD | keyring |
-| Services | services/ | 유스케이스 오케스트레이션, 트랜잭션 관리 | repositories, domain, providers, secrets |
-| ViewModels | ui/viewmodels/ | DD-11: MVP v0.1에서 의도적 생략. v0.2 도입 예정 | — |
-| UI Pages | ui/pages/ | PySide6 위젯, 사용자 상호작용 | services (DD-11: 직접 호출), AsyncSignalBridge |
-| UI Widgets | ui/widgets/ | 재사용 위젯: 메시지 뷰, 토큰 바, 엔티티 선택 다이얼로그 | domain |
+| Services | services/ | 유스케이스 오케스트레이션: Chat, VibeFill, DynamicState, Prompt | repositories, domain |
+| API | api/ | FastAPI 라우터, WebSocket 스트리밍, REST CRUD | FastAPI, services |
+| Frontend | frontend/ | HTML/CSS/JS SPA, Neo-Brutal 디자인, WebSocket 클라이언트 | Vanilla JS |
 
 ---
 
@@ -77,20 +75,17 @@ class BaseRepository(Generic[T]):
     def delete_by_id(self, id: str) -> bool: ...
 ```
 
-### 3.3 ViewModel → Service 경계
+### 3.3 API → Service 경계 (v1.0.0)
 
-> **DD-11 (MVP v0.1):** ViewModel 계층은 의도적으로 생략되었다. v0.2에서 도입 예정.
+- FastAPI 라우터는 `request.app.state`를 통해 서비스에 접근한다.
+- 라우터는 Provider/Repository를 직접 import하지 않는다 (Service를 통해서만 접근).
+- WebSocket 엔드포인트는 ChatService.start_stream()을 호출하여 실시간 스트리밍을 수행한다.
 
-- ~~ViewModel은 Service의 공개 메서드만 호출한다.~~ → MVP에서는 UI Pages가 Service를 직접 호출.
-- ~~ViewModel은 Provider adapter를 직접 호출하지 않는다.~~ → 유지 (UI도 Provider를 직접 호출하지 않음).
-- ~~ViewModel은 Qt Signal로 UI에 상태 변경을 알린다.~~ → MVP에서는 AsyncSignalBridge가 비동기 결과를 Signal로 전달.
+### 3.4 Frontend → API 경계 (v1.0.0)
 
-### 3.4 UI → Service 경계 (MVP v0.1, DD-11)
-
-- UI 위젯은 Service의 공개 메서드를 직접 호출한다 (MVP 허용).
-- 비동기 작업은 AsyncSignalBridge를 통해 worker 스레드에서 실행하고, Signal로 결과를 메인 스레드에 전달한다.
-- UI 위젯은 Repository/Provider를 직접 import하지 않는다 (Service를 통해서만 접근).
-- v0.2에서 ViewModel 계층이 도입되면, UI → ViewModel → Service 의존 구조로 전환한다.
+- 프론트엔드는 `api.js` 유틸리티를 통해 REST API와 WebSocket을 사용한다.
+- 페이지별 JS 모듈(`pages/*.js`)이 SPA 라우팅을 처리한다.
+- 모든 API 호출은 `fetch()` 기반이며, 스트리밍은 WebSocket을 사용한다.
 
 ---
 

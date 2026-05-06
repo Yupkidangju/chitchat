@@ -36,11 +36,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # [v1.0.0] 앱 데이터 디렉토리 보장
     APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # DB 엔진 생성 및 마이그레이션
+    # DB 마이그레이션 후 엔진 생성
+    # [v1.0.0] run_migrations는 SQLite 잠금 데드락 방지를 위해 db_path를 직접 받는다.
+    # 마이그레이션 완료 후 engine과 session_factory를 생성한다.
     db_path = APP_DATA_DIR / "chitchat.db"
+    run_migrations(db_path)
     engine = create_db_engine(db_path)
     session_factory = create_session_factory(engine)
-    run_migrations(engine)
 
     # 사용자 설정 로드 및 i18n 초기화
     prefs = UserPreferences.instance()
@@ -48,11 +50,38 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     translator = Translator.instance()
     translator.set_locale(prefs.ui_locale)
 
+    # [v1.0.0] 서비스 레지스트리 초기화
+    from chitchat.db.repositories import RepositoryRegistry
+    from chitchat.providers.registry import ProviderRegistry
+    from chitchat.secrets.key_store import KeyStore
+    from chitchat.services.chat_service import ChatService
+    from chitchat.services.dynamic_state_engine import DynamicStateEngine
+    from chitchat.services.prompt_service import PromptService
+    from chitchat.services.provider_service import ProviderService
+    from chitchat.services.vibe_fill_service import VibeFillService
+
+    repos = RepositoryRegistry(session_factory)
+    key_store = KeyStore()
+    provider_registry = ProviderRegistry()
+    provider_service = ProviderService(repos, provider_registry, key_store)
+    prompt_service = PromptService(repos)
+    dynamic_state_engine = DynamicStateEngine()
+    # [v1.0.0] ChatService에 DynamicStateEngine을 주입하여 스트리밍 후 자동 갱신
+    chat_service = ChatService(
+        repos, provider_registry, key_store, prompt_service, dynamic_state_engine,
+    )
+    vibe_fill_service = VibeFillService(repos, provider_registry, key_store)
+
     # 앱 상태에 공유 객체 저장 (라우터에서 접근)
     app.state.engine = engine
     app.state.session_factory = session_factory
     app.state.app_data_dir = APP_DATA_DIR
     app.state.user_preferences = prefs
+    app.state.repos = repos
+    app.state.provider_service = provider_service
+    app.state.chat_service = chat_service
+    app.state.vibe_fill_service = vibe_fill_service
+    app.state.dynamic_state_engine = dynamic_state_engine
 
     logger.info("chitchat v1.0.0 서버 시작 — DB: %s", db_path)
 

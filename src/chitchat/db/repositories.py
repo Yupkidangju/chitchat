@@ -20,10 +20,12 @@ from chitchat.db.models import (
     ChatMessageRow,
     ChatProfileRow,
     ChatSessionRow,
+    DynamicStateRow,
     LoreEntryRow,
     LorebookRow,
     ModelCacheRow,
     ModelProfileRow,
+    PersonaCardRow,
     ProviderProfileRow,
     UserPersonaRow,
     WorldbookRow,
@@ -429,6 +431,45 @@ class ChatMessageRepository(BaseRepository):
             return count
 
 
+# [v1.0.0] VibeSmith 페르소나 카드 Repository
+class PersonaCardRepository(BaseRepository):
+    """PersonaCard CRUD Repository.
+
+    9섹션 VibeSmith 페르소나 카드를 관리한다.
+    persona_json에 전체 PersonaCard JSON이 저장된다.
+    """
+
+    def get_all(self) -> list[PersonaCardRow]:
+        """모든 페르소나 카드를 반환한다."""
+        with self._get_session() as session:
+            stmt = select(PersonaCardRow).order_by(PersonaCardRow.name)
+            return list(session.execute(stmt).scalars().all())
+
+    def get_by_id(self, id_: str) -> PersonaCardRow | None:
+        """ID로 페르소나 카드를 조회한다."""
+        with self._get_session() as session:
+            return session.get(PersonaCardRow, id_)
+
+    def upsert(self, row: PersonaCardRow) -> PersonaCardRow:
+        """페르소나 카드를 삽입하거나 업데이트한다."""
+        with self._get_session() as session:
+            row.updated_at = datetime.now(timezone.utc).isoformat()
+            merged = session.merge(row)
+            session.commit()
+            session.refresh(merged)
+            return merged
+
+    def delete_by_id(self, id_: str) -> bool:
+        """ID로 페르소나 카드를 삭제한다."""
+        with self._get_session() as session:
+            row = session.get(PersonaCardRow, id_)
+            if row is None:
+                return False
+            session.delete(row)
+            session.commit()
+            return True
+
+
 class RepositoryRegistry:
     """모든 Repository 인스턴스를 관리하는 단일 진입점.
 
@@ -448,3 +489,58 @@ class RepositoryRegistry:
         self.chat_profiles = ChatProfileRepository(session_factory)
         self.chat_sessions = ChatSessionRepository(session_factory)
         self.chat_messages = ChatMessageRepository(session_factory)
+        # [v1.0.0] VibeSmith 페르소나 카드
+        self.persona_cards = PersonaCardRepository(session_factory)
+        # [v1.0.0] 동적 상태 (ZSTD 압축 blob)
+        self.dynamic_states = DynamicStateRepository(session_factory)
+
+
+class DynamicStateRepository:
+    """DynamicStateRow CRUD — ZSTD 압축 blob 기반 동적 상태 영속화.
+
+    character_id + session_id 조합으로 고유한 상태를 관리한다.
+    """
+
+    def __init__(self, session_factory: sessionmaker[Session]) -> None:
+        self._sf = session_factory
+
+    def _get_session(self) -> Session:
+        return self._sf()
+
+    def get_by_session(self, session_id: str) -> DynamicStateRow | None:
+        """세션 ID로 동적 상태를 조회한다."""
+        with self._get_session() as session:
+            stmt = select(DynamicStateRow).where(
+                DynamicStateRow.session_id == session_id,
+            )
+            return session.execute(stmt).scalars().first()
+
+    def get_by_character_session(
+        self, character_id: str, session_id: str,
+    ) -> DynamicStateRow | None:
+        """캐릭터 + 세션 조합으로 동적 상태를 조회한다."""
+        with self._get_session() as session:
+            stmt = select(DynamicStateRow).where(
+                DynamicStateRow.character_id == character_id,
+                DynamicStateRow.session_id == session_id,
+            )
+            return session.execute(stmt).scalars().first()
+
+    def upsert(self, row: DynamicStateRow) -> DynamicStateRow:
+        """동적 상태를 삽입하거나 업데이트한다."""
+        with self._get_session() as session:
+            row.updated_at = datetime.now(timezone.utc).isoformat()
+            merged = session.merge(row)
+            session.commit()
+            session.refresh(merged)
+            return merged
+
+    def delete_by_id(self, id_: str) -> bool:
+        """ID로 동적 상태를 삭제한다."""
+        with self._get_session() as session:
+            row = session.get(DynamicStateRow, id_)
+            if row is None:
+                return False
+            session.delete(row)
+            session.commit()
+            return True

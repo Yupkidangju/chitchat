@@ -2,16 +2,13 @@
 // [v1.0.0] SPA 라우터 및 초기화
 //
 // 사이드바 네비게이션 클릭에 따라 페이지를 동적으로 로드한다.
-// 각 페이지 모듈은 render() 함수를 export하여 #page-container에 렌더링한다.
+// 각 페이지 모듈의 render() 함수를 호출하여 #page-container에 렌더링한다.
 
 const pageContainer = document.getElementById('page-container');
 const navItems = document.querySelectorAll('.nav-item');
 
 // 현재 활성 페이지
 let currentPage = 'chat';
-
-// 페이지 모듈 맵
-const pageModules = {};
 
 /**
  * 페이지를 전환한다.
@@ -25,21 +22,35 @@ async function navigateTo(pageName) {
 
   currentPage = pageName;
 
-  // 페이지 콘텐츠 렌더링
-  pageContainer.innerHTML = `
-    <div class="card">
-      <h2 class="card-title">${getPageTitle(pageName)}</h2>
-      <p style="color: var(--text-secondary);">
-        이 페이지는 v1.0.0 리팩토링 중 구현될 예정입니다.
-      </p>
-    </div>
-  `;
+  // 페이지별 렌더링 함수 호출
+  switch (pageName) {
+    case 'chat':
+      await renderChat(pageContainer);
+      break;
+    case 'providers':
+      await renderProviders(pageContainer);
+      break;
+    case 'personas':
+      await renderPersonas(pageContainer);
+      break;
+    case 'settings':
+      await renderSettings(pageContainer);
+      break;
+    default:
+      // 아직 구현되지 않은 페이지
+      pageContainer.innerHTML = `
+        <div class="card">
+          <h2 class="card-title">${getPageTitle(pageName)}</h2>
+          <p style="color: var(--text-secondary);">
+            이 페이지는 v1.0.0 후속 업데이트에서 구현될 예정입니다.
+          </p>
+        </div>
+      `;
+  }
 }
 
 /**
  * 페이지 이름으로 타이틀을 반환한다.
- * @param {string} pageName
- * @returns {string}
  */
 function getPageTitle(pageName) {
   const titles = {
@@ -63,7 +74,7 @@ navItems.forEach(item => {
   });
 });
 
-// 초기 헬스체크
+// 초기화
 async function init() {
   try {
     const res = await fetch('/api/health');
@@ -72,6 +83,9 @@ async function init() {
   } catch (err) {
     console.error('서버 연결 실패:', err);
   }
+
+  // 기본 페이지 렌더링
+  navigateTo(currentPage);
 }
 
 init();

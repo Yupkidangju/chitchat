@@ -12,8 +12,10 @@ from alembic import context
 # Alembic Config 객체. alembic.ini의 값에 접근한다.
 config = context.config
 
-# 로깅 설정
-if config.config_file_name is not None:
+# 로깅 설정 — CLI에서 직접 실행할 때만 적용
+# 프로그래밍 방식(run_migrations)으로 호출하면 기존 로거가 파괴되므로 건너뛴다.
+import os
+if config.config_file_name is not None and not os.environ.get("CHITCHAT_PROGRAMMATIC_ALEMBIC"):
     fileConfig(config.config_file_name)
 
 # ORM 모델의 MetaData를 target_metadata로 설정한다.

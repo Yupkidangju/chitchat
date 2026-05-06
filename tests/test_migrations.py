@@ -1,5 +1,9 @@
 # tests/test_migrations.py
-# [v0.2.0] DB 마이그레이션 경로 회귀 방지 테스트
+# [v1.0.0] DB 마이그레이션 경로 회귀 방지 테스트
+#
+# [v0.2.0 → v1.0.0 변경사항]
+# - run_migrations(engine) → run_migrations(db_path) 시그니처 변경 반영
+# - 테스트에서 Engine 대신 db_path를 직접 전달
 #
 # run_migrations()가 세 가지 DB 상태(신규/v0.1/partial)를
 # 에러 없이 처리하는지 자동 검증한다.
@@ -36,13 +40,13 @@ class TestMigrationScenarios:
         테이블이 하나도 없는 상태에서 run_migrations()를 호출하면
         initial_schema + v0.2 확장 필드가 모두 정상적으로 생성되어야 한다.
         """
-        _, make_engine = tmp_db
-        engine = make_engine()
+        db_path, make_engine = tmp_db
 
-        # 마이그레이션 실행
-        run_migrations(engine)
+        # [v1.0.0] db_path를 직접 전달
+        run_migrations(db_path)
 
         # 검증: 핵심 테이블 존재 확인
+        engine = make_engine()
         insp = inspect(engine)
         tables = set(insp.get_table_names())
         assert "ai_personas" in tables
@@ -55,30 +59,16 @@ class TestMigrationScenarios:
         for expected in ("age", "gender", "appearance", "backstory",
                          "relationships", "skills", "interests", "weaknesses"):
             assert expected in cols, f"v0.2 확장 필드 '{expected}'가 누락됨"
+        engine.dispose()
 
     def test_v01_db_upgrade(self, tmp_db: tuple) -> None:
         """시나리오 2: v0.1 DB (테이블 있음, alembic_version 없음, v0.2 컬럼 없음).
 
-        initial_schema까지만 적용된 DB에서 alembic_version을 제거하여
         v0.1 상태를 재현한 뒤, run_migrations()가 v0.2 컬럼을 추가하는지 확인한다.
         """
         db_path, make_engine = tmp_db
-        engine = make_engine()
 
-        # v0.1 DB 재현: 전체 마이그레이션 → v0.2 컬럼 롤백을 위해
-        # initial_schema만 직접 구성
-        run_migrations(engine)
-
-        # alembic_version 제거 + v0.2 컬럼 제거하여 v0.1 상태 재현
-        conn = sqlite3.connect(str(db_path))
-        conn.execute("DROP TABLE alembic_version")
-        # SQLite는 DROP COLUMN을 지원하지 않으므로, 테이블을 재생성
-        # 대신 간단하게: 완전히 새로 만들어서 v0.1 구조만 가진 DB 생성
-        conn.close()
-
-        # 더 안정적인 방법: 깨끗한 DB에 v0.1 스키마만 수동 생성
-        import os
-        os.unlink(str(db_path))
+        # v0.1 DB 재현: v0.1 스키마만 수동 생성
         conn = sqlite3.connect(str(db_path))
         conn.execute("""CREATE TABLE ai_personas (
             id TEXT PRIMARY KEY,
@@ -99,23 +89,24 @@ class TestMigrationScenarios:
         conn.commit()
         conn.close()
 
-        # 새 engine으로 마이그레이션 실행
-        engine2 = make_engine()
-        run_migrations(engine2)
+        # [v1.0.0] db_path를 직접 전달
+        run_migrations(db_path)
 
         # 검증: v0.2 확장 필드가 추가되었는지 확인
-        insp = inspect(engine2)
+        engine = make_engine()
+        insp = inspect(engine)
         cols = {c["name"] for c in insp.get_columns("ai_personas")}
         for expected in ("age", "gender", "appearance", "backstory",
                          "relationships", "skills", "interests", "weaknesses"):
             assert expected in cols, f"v0.2 확장 필드 '{expected}'가 추가되지 않음"
 
         # 검증: 기존 행의 v0.2 필드가 빈 문자열(server_default)로 설정되었는지 확인
-        with engine2.connect() as c:
+        with engine.connect() as c:
             row = c.execute(text("SELECT age, gender FROM ai_personas WHERE id='p1'")).fetchone()
             assert row is not None
             assert row[0] == ""  # server_default="" 적용 확인
             assert row[1] == ""
+        engine.dispose()
 
     def test_partial_db_recovery(self, tmp_db: tuple) -> None:
         """시나리오 3: Partial DB (v0.2 컬럼이 이미 존재하지만 alembic_version 없음).
@@ -158,23 +149,25 @@ class TestMigrationScenarios:
         conn.commit()
         conn.close()
 
-        engine = make_engine()
-
-        # 마이그레이션 실행 — duplicate column 에러가 발생하면 안 됨
-        run_migrations(engine)
+        # [v1.0.0] db_path를 직접 전달
+        run_migrations(db_path)
 
         # 검증: alembic_version이 head로 스탬프되었는지 확인
+        engine = make_engine()
         insp = inspect(engine)
         assert "alembic_version" in insp.get_table_names()
+        engine.dispose()
 
     def test_idempotent_migration(self, tmp_db: tuple) -> None:
         """run_migrations()를 두 번 연속 호출해도 에러가 발생하지 않는지 확인한다."""
-        _, make_engine = tmp_db
-        engine = make_engine()
+        db_path, make_engine = tmp_db
 
-        run_migrations(engine)
+        # [v1.0.0] db_path를 직접 전달
+        run_migrations(db_path)
         # 두 번째 호출 — 이미 head인 상태에서 다시 upgrade해도 에러 없어야 함
-        run_migrations(engine)
+        run_migrations(db_path)
 
+        engine = make_engine()
         insp = inspect(engine)
         assert "ai_personas" in insp.get_table_names()
+        engine.dispose()
