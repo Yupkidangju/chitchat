@@ -317,7 +317,7 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 | `api/routes/profiles.py` | Worldbook + WorldEntry | 5 | ✅ |
 | `api/routes/profiles.py` | UserPersona | 3 | ✅ |
 | `api/routes/chat.py` | ChatSession + WebSocket + Inspector | 6 | ✅ |
-| `api/routes/settings.py` | UserPreferences | 2 | ✅ |
+| `api/routes/settings.py` | UserPreferences | 3 | ✅ |
 | `api/routes/health.py` | Health | 1 | ✅ |
 
 ### 10.2 프론트엔드 페이지 현황
@@ -332,5 +332,5 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 | 월드북 | `worldbooks.js` | CRUD + WorldEntry 관리 | ✅ |
 | 채팅 프로필 | `chat_profiles.js` | 다중 선택 조합 | ✅ |
 | 프롬프트 순서 | `prompt_order.js` | 블록 순서 편집 | ✅ |
-| 설정 | `settings.js` | i18n 로케일 변경 | ✅ |
+| 설정 | `settings.js` | 4섹션 (언어, 표시, 일반, 데이터 관리), 설정 초기화 | ✅ |
 
