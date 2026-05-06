@@ -43,6 +43,9 @@
 - **profiles REST API**: ModelProfile, ChatProfile, Lorebook, Worldbook CRUD 20개 엔드포인트 (`api/routes/profiles.py`)
 - **프론트엔드 프로필 관리 5종**: models.js, chat_profiles.js, lorebooks.js, worldbooks.js, prompt_order.js
 - **SPA 라우터 완성**: 모든 9개 사이드바 페이지 라우트 연결 (스텁 제거)
+- **채팅 세션 생성 모달**: ChatProfile + UserPersona 선택 → 세션 생성 워크플로우 완성
+- **UserPersona CRUD API**: GET/POST/DELETE `/api/user-personas` 엔드포인트 추가
+- **자동 UserPersona 생성**: 사용자 페르소나 미등록 시 '기본 사용자' 자동 생성
 
 ### 수정됨 (v1.0.0)
 

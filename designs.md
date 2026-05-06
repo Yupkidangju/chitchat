@@ -1262,3 +1262,41 @@ THEME = {
 4. Whether multi-session search is required is not defined. ChatPage can include session list filtering only after search behavior is specified.
 5. Whether prompt snapshot comparison between messages is required is not defined. Inspector shows one selected snapshot at a time in v0.1 BETA.
 
+---
+
+## 프론트엔드 구현 현황 (v1.0.0)
+
+### SPA 라우터 구조
+
+```
+index.html
+├── api.js (API 클라이언트: apiGet/apiPost/apiPut/apiDelete)
+├── app.js (SPA 라우터: 9개 페이지 라우트)
+└── pages/
+    ├── chat.js .............. ✅ 3컬럼 레이아웃 + WebSocket 스트리밍 + 동적 상태 패널
+    ├── providers.js ......... ✅ Provider CRUD + 연결 테스트 + 모델 캐시
+    ├── models.js ............ ✅ ModelProfile CRUD (Provider 연동 모델 선택)
+    ├── personas.js .......... ✅ VibeFill AI Persona 생성/관리
+    ├── lorebooks.js ......... ✅ Lorebook + LoreEntry CRUD (activation_keys 쉼표 구분)
+    ├── worldbooks.js ........ ✅ Worldbook + WorldEntry CRUD
+    ├── chat_profiles.js ..... ✅ ChatProfile 조합 (ModelProfile + Persona + LB + WB)
+    ├── prompt_order.js ...... ✅ 프롬프트 블록 순서 편집 (▲▼)
+    └── settings.js .......... ✅ 사용자 설정 (i18n 로케일 등)
+```
+
+### 세션 생성 워크플로우
+
+```
+[채팅 페이지] → [+] 클릭 → 모달 표시
+    ├── 세션 제목 입력
+    ├── ChatProfile 선택 (드롭다운)
+    ├── UserPersona 선택 (드롭다운 or 자동 생성)
+    └── [생성] → POST /api/sessions → 세션 선택 → WebSocket 연결
+```
+
+### 구현 시 주의사항
+
+1. **캐시 버스팅**: 정적 파일 캐시 문제 방지를 위해 `?v=N` 쿼리 파라미터 사용
+2. **z-index 레이어**: 모달은 `document.body` 직속 + `z-index: 9999`로 최상위 레이어 보장
+3. **escapeHtml**: `providers.js`에 전역 정의, 모든 페이지에서 공유
+4. **API 에러 처리**: `apiGet/apiPost` 실패 시 `try/catch`로 사용자 친화적 에러 메시지 표시

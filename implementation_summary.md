@@ -300,3 +300,37 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 3. DB 스키마 변경 시: (a) v0.2.0부터 `create_all()` 대신 Alembic 단독 정책을 사용한다. (b) 스키마 변경이 필요하면 `alembic revision --autogenerate`로 새 리비전을 생성한다. (c) `run_migrations()`가 앱 시작 시 자동으로 호출되어 신규/기존/partial DB를 모두 처리한다.
 4. 디자인 토큰 변경 시 `ui/theme.py`만 수정한다. 개별 위젯 파일에 하드코딩된 색상은 금지.
 5. `spec.md`와 구현 코드가 충돌하면 코드 생성을 멈추고 문서를 먼저 갱신한다.
+
+---
+
+## 10. v1.0.0 프로필 관리 인프라
+
+### 10.1 REST API 엔드포인트 현황
+
+| 라우트 파일 | 대상 엔티티 | 엔드포인트 수 | 상태 |
+|---|---|:---:|:---:|
+| `api/routes/providers.py` | ProviderProfile | 6 | ✅ |
+| `api/routes/personas.py` | AIPersona (VibeFill) | 4 | ✅ |
+| `api/routes/profiles.py` | ModelProfile | 4 | ✅ |
+| `api/routes/profiles.py` | ChatProfile | 4 | ✅ |
+| `api/routes/profiles.py` | Lorebook + LoreEntry | 5 | ✅ |
+| `api/routes/profiles.py` | Worldbook + WorldEntry | 5 | ✅ |
+| `api/routes/profiles.py` | UserPersona | 3 | ✅ |
+| `api/routes/chat.py` | ChatSession + WebSocket | 5 | ✅ |
+| `api/routes/settings.py` | UserPreferences | 2 | ✅ |
+| `api/routes/health.py` | Health | 1 | ✅ |
+
+### 10.2 프론트엔드 페이지 현황
+
+| 페이지 | 파일 | 주요 기능 | 상태 |
+|---|---|---|:---:|
+| 채팅 | `chat.js` | 3컬럼, WebSocket, 동적 상태, 세션 생성 모달 | ✅ |
+| 공급자 | `providers.js` | CRUD, 연결 테스트, 모델 캐시 | ✅ |
+| 모델 설정 | `models.js` | ModelProfile CRUD, Provider 연동 모델 선택 | ✅ |
+| 페르소나 | `personas.js` | VibeFill AI 생성, 9섹션 편집 | ✅ |
+| 로어북 | `lorebooks.js` | CRUD + LoreEntry 관리 | ✅ |
+| 월드북 | `worldbooks.js` | CRUD + WorldEntry 관리 | ✅ |
+| 채팅 프로필 | `chat_profiles.js` | 다중 선택 조합 | ✅ |
+| 프롬프트 순서 | `prompt_order.js` | 블록 순서 편집 | ✅ |
+| 설정 | `settings.js` | i18n 로케일 변경 | ✅ |
+
