@@ -287,27 +287,33 @@ D3D Protocol에 따라 다국어(한/영/일/중(번체)/중(간체)) 지원이 
 
 ---
 
-## DD-11: ViewModel 계층 의도적 간소화
+## DD-11: ViewModel 계층 — 전면 도입 기각, chat.js 선택적 분리
 
 ### 배경
 
-spec.md §5 아키텍처에서 `ui → viewmodels → services` 의존 규칙을 정의했지만, MVP v0.1 단계에서 ViewModel 계층이 별도 구현되지 않았다. UI 페이지가 Service를 직접 호출하고 있으며 이에 대한 아키텍처 결정을 명시한다.
+spec.md §5 아키텍처에서 `ui → viewmodels → services` 의존 규칙을 정의했으나, v0.1.0b0에서 PySide6 ViewModel 계층을 의도적으로 생략했다. 이후 DD-15에서 FastAPI+SPA로 전환하면서, Qt ViewModel의 의미 자체가 소멸했다. v1.0.0에서 웹 SPA 맥락에 맞게 재평가했다.
 
 ### 결정
 
-**MVP v0.1에서 ViewModel 계층을 의도적으로 생략하고, UI 페이지가 Service를 직접 호출하는 것을 허용한다.** ViewModel이 필요한 시점(폼 검증 복잡도 증가, UI 상태 공유 등)에 점진적으로 도입한다.
+**전면 ViewModel 계층 도입을 기각한다.** 9개 페이지 중 8개가 200줄 이하로 복잡도가 ViewModel 정당화 수준 미달이다. 대신 가장 큰 `chat.js`(579줄)만 3개 모듈로 분리한다:
+
+- `chat.js` (101줄): 레이아웃 렌더링 + 이벤트 바인딩 오케스트레이터
+- `chat_session.js` (188줄): 세션 CRUD + 생성 모달 + 메시지 렌더링
+- `chat_composer.js` (313줄): WebSocket 연결 + 메시지 전송 + 동적 상태 + Inspector
 
 ### 대안과 기각 사유
 
 | 대안 | 기각 사유 |
 |---|---|
-| 당장 ViewModel 전면 도입 | MVP 기능 구현 속도 저하, 보일러플레이트 코드 과다 |
-| UI 로직과 도메인 로직 혼재 | 유지보수성 최악, Service 계층 분리는 최소한으로 유지 |
+| 9개 파일 전체에 ViewModel 패턴 적용 | 8개가 200줄 이하, 보일러플레이트만 증가 |
+| React/Vue 도입 후 컴포넌트 + 상태 관리 | 기존 1,963 LoC 재작성 비용 대비 실익 없음. DD-15에서 Vanilla JS 동결 |
+| 아무것도 안 함 | chat.js 579줄은 세션/스트리밍/Inspector 혼재로 유지보수 곤란 |
 
 ### 결과
 
-- `ui/pages/`의 각 위젯은 필요한 Service 인스턴스를 주입받아 비즈니스 로직 호출
-- UI 상태 관리 로직은 각 위젯 클래스 내부에 잔류
+- `frontend/js/pages/` 내 chat 관련 파일이 3개로 분리됨
+- `index.html`에서 `chat_session.js` → `chat_composer.js` → `chat.js` 순서로 로딩
+- 전역 상태 `currentSessionId`는 `chat.js`에서 선언, 하위 모듈에서 참조
 
 ---
 

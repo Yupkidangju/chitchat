@@ -36,6 +36,10 @@
   - 4가지 타입: success, error, warning, info
   - 삭제 성공/실패, 참조 무결성 에러(409) 등 시각적 피드백
 - **페르소나 삭제 UI**: 페르소나 카드에 삭제 버튼 추가
+- **chat.js 모듈 분리 (DD-11 재평가)**: 579줄 → 3개 모듈로 분리
+  - `chat.js` (101줄): 오케스트레이터
+  - `chat_session.js` (188줄): 세션 CRUD + 모달
+  - `chat_composer.js` (313줄): WebSocket + 스트리밍 + Inspector
 
 - **아키텍처 전환**: PySide6 데스크톱 앱 → Python FastAPI 백엔드 + HTML/CSS/JS 웹 프론트엔드
 - **VibeSmith 동적 페르소나 시스템**: 14필드 정적 구조 → 9섹션 동적 구조
