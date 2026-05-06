@@ -309,8 +309,10 @@ class ChatService:
     async def _update_dynamic_state(self, session_id: str, assistant_text: str) -> None:
         """스트리밍 완료 후 캐릭터 동적 상태를 갱신한다.
 
-        [v1.0.0] DynamicStateEngine을 호출하여 관계/기억/감정 변화를 반영하고,
-        ZSTD 압축 blob으로 SQLite에 영속화한다.
+        [v1.0.0] 2단계 분석:
+        1. AI 판단 기반 분석 (Provider 사용 가능 시)
+        2. 키워드 폴백 (AI 분석 실패 또는 Provider 없을 시)
+
         실패 시 로그만 남기고 채팅 흐름에 영향을 주지 않는다.
         """
         if not self._dse:
@@ -347,9 +349,12 @@ class ChatService:
             # 턴 카운트 증가
             self._dse.increment_turn(state)
 
-            # 간단한 키워드 기반 기억 트리거 분석
-            # (향후 AI 기반 분석으로 교체 예정)
-            self._analyze_and_update(state, assistant_text)
+            # AI 판단 기반 분석 시도 → 실패 시 키워드 폴백
+            ai_success = await self._try_ai_analysis(
+                session, cp, state, session_id, assistant_text,
+            )
+            if not ai_success:
+                self._keyword_fallback_analysis(state, assistant_text)
 
             # ZSTD 압축 후 DB 저장
             blob = self._dse.compress_state(state)
@@ -370,23 +375,122 @@ class ChatService:
                 self._repos.dynamic_states.upsert(new_row)
 
             logger.info(
-                "동적 상태 갱신 완료: 캐릭터=%s, 세션=%s, 턴=%d",
+                "동적 상태 갱신 완료: 캐릭터=%s, 세션=%s, 턴=%d, AI분석=%s",
                 character_id, session_id, state.turn_count,
+                "성공" if ai_success else "폴백",
             )
 
         except Exception:
             # 동적 상태 갱신 실패는 채팅에 영향을 주지 않는다
             logger.exception("동적 상태 갱신 실패 (비차단)")
 
-    def _analyze_and_update(
+    async def _try_ai_analysis(
+        self,
+        session: "ChatSessionRow",  # noqa: F821
+        cp: "ChatProfileRow",  # noqa: F821
+        state: "DynamicCharacterState",  # noqa: F821
+        session_id: str,
+        assistant_text: str,
+    ) -> bool:
+        """AI Provider를 사용하여 대화를 분석하고 동적 상태를 갱신한다.
+
+        [v1.0.0] 성공 시 True, 실패 시 False를 반환하여 키워드 폴백을 결정한다.
+        """
+        try:
+            # ModelProfile → Provider 체인 로드
+            mp = self._repos.model_profiles.get_by_id(cp.model_profile_id)
+            if not mp:
+                return False
+
+            prov = self._repos.providers.get_by_id(mp.provider_profile_id)
+            if not prov:
+                return False
+
+            # API Key 조회
+            api_key: str | None = None
+            if prov.provider_kind != "lm_studio" and prov.secret_ref:
+                api_key = self._key_store.get_key(prov.id, prov.provider_kind)
+
+            # AI Persona 이름 가져오기
+            persona = self._repos.ai_personas.get_by_id(cp.ai_persona_id)
+            character_name = persona.name if persona else "캐릭터"
+
+            # 최근 대화 히스토리 로드
+            msgs = self._repos.chat_messages.get_by_session(session_id)
+            recent_messages = [(m.role, m.content) for m in msgs[-10:]]
+
+            # 분석 프롬프트 생성
+            analysis_prompt = self._dse.build_analysis_prompt(
+                state, character_name, recent_messages,
+            )
+
+            # 분석용 Provider 호출 (비스트리밍)
+            from chitchat.domain.provider_contracts import (
+                ChatCompletionMessage,
+                ChatCompletionRequest,
+                ModelGenerationSettings,
+                ProviderProfileData,
+            )
+
+            request = ChatCompletionRequest(
+                provider_profile_id=prov.id,
+                model_id=mp.model_id,
+                messages=[
+                    ChatCompletionMessage(role="system", content=analysis_prompt),
+                    ChatCompletionMessage(
+                        role="user",
+                        content="위 대화를 분석하고 JSON으로 응답하세요.",
+                    ),
+                ],
+                settings=ModelGenerationSettings(
+                    temperature=0.3,  # 분석이므로 낮은 온도
+                    max_output_tokens=500,
+                ),
+            )
+
+            profile_data = ProviderProfileData(
+                id=prov.id,
+                name=prov.name,
+                provider_kind=prov.provider_kind,  # type: ignore[arg-type]
+                base_url=prov.base_url,
+                secret_ref=prov.secret_ref,
+                timeout_seconds=prov.timeout_seconds,
+            )
+
+            # 스트리밍으로 수집 (비스트리밍 API가 없으므로)
+            adapter = self._providers.get(prov.provider_kind)  # type: ignore[arg-type]
+            response_text = ""
+            async for chunk in adapter.stream_chat(profile_data, request, api_key):
+                response_text += chunk.delta
+                if chunk.finish_reason:
+                    break
+
+            if not response_text.strip():
+                logger.warning("AI 분석 응답이 비어 있음")
+                return False
+
+            # JSON 파싱 + 적용
+            analysis = self._dse.parse_analysis_response(response_text)
+            if not analysis:
+                return False
+
+            self._dse.apply_analysis(state, analysis)
+            logger.info("AI 기반 동적 상태 분석 성공")
+            return True
+
+        except Exception:
+            logger.debug("AI 분석 실패 — 키워드 폴백으로 전환", exc_info=True)
+            return False
+
+    def _keyword_fallback_analysis(
         self,
         state: "DynamicCharacterState",  # noqa: F821
         text: str,
     ) -> None:
-        """AI 응답에서 기억 트리거와 관계 변화를 분석한다.
+        """AI 분석 실패 시 키워드 기반으로 동적 상태를 갱신한다.
 
-        [v1.0.0] 1차 구현: 키워드 기반 사전 필터링.
-        향후 AI 판단 기반 분석으로 확장 예정.
+        [v1.0.0] AI 판단 기반 분석의 폴백 메커니즘.
+        7개 한국어 키워드를 매칭하여 기억 형성 + 관계 변수 조정.
         """
         if not self._dse:
             return
@@ -402,6 +506,7 @@ class ChatService:
             "함께": ("shared_experience", {"familiarity": 2}),
         }
 
+        triggered = False
         for keyword, (trigger, changes) in keyword_triggers.items():
             if keyword in text:
                 self._dse.add_memory(
@@ -409,4 +514,9 @@ class ChatService:
                     emotional_impact=", ".join(f"{k}{v:+d}" for k, v in changes.items()),
                 )
                 self._dse.update_relationship(state, changes)
-                logger.debug("트리거 감지: %s → %s", keyword, trigger)
+                logger.debug("키워드 폴백 트리거: %s → %s", keyword, trigger)
+                triggered = True
+
+        if not triggered:
+            logger.debug("키워드 폴백: 트리거 없음")
+

@@ -38,6 +38,8 @@
 - **동적 상태 REST API**: `/api/sessions/{id}/dynamic-state` — ZSTD blob 해동 후 JSON 응답
 - **프론트엔드 동적 상태 패널**: 채팅 우측 3컬럼 레이아웃, 관계 바 차트 + 기억 로그, 스트리밍 완료 시 자동 갱신
 - **implementation_summary.md 동기화**: v0.3.0 PySide6 → v1.0.0 FastAPI+SPA 아키텍처 반영
+- **AI 판단 기반 동적 상태 분석**: `build_analysis_prompt` + `parse_analysis_response` + `apply_analysis` — 키워드 폴백 이중 안전장치
+- **SC-12 AI 분석 테스트**: 프롬프트 생성, JSON 파싱(성공/실패), apply 적용, 변경량 클램핑 검증 (200 passed)
 
 ### 수정됨 (v1.0.0)
 

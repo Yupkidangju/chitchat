@@ -239,3 +239,168 @@ class DynamicStateEngine:
                 lines.append(f"  - [{evt.event_type}] {evt.description}")
 
         return "\n".join(lines)
+
+    # --- AI 기반 동적 상태 분석 ---
+
+    def build_analysis_prompt(
+        self,
+        state: DynamicCharacterState,
+        character_name: str,
+        recent_messages: list[tuple[str, str]],
+    ) -> str:
+        """AI에게 대화 분석을 요청하는 시스템 프롬프트를 생성한다.
+
+        [v1.0.0] AI가 현재 대화 맥락과 캐릭터 상태를 기반으로
+        관계 변수 변경, 기억 형성, 감정 전이를 판단한다.
+
+        Args:
+            state: 현재 동적 상태.
+            character_name: 캐릭터 이름.
+            recent_messages: 최근 대화 [(role, content), ...] (최대 10턴).
+
+        Returns:
+            AI에게 전달할 분석 프롬프트 텍스트.
+        """
+        rs = state.relationship_state
+
+        # 최근 대화 포맷팅
+        conversation = "\n".join(
+            f"[{role}]: {content[:300]}"
+            for role, content in recent_messages[-10:]
+        )
+
+        return f"""당신은 캐릭터 상태 분석 AI입니다. 아래 대화와 현재 관계 상태를 분석하여 변경 사항을 JSON으로 출력하세요.
+
+# 캐릭터: {character_name}
+# 턴: {state.turn_count}
+
+# 현재 관계 상태 (0~100):
+- trust: {rs.trust}
+- familiarity: {rs.familiarity}
+- emotional_reliance: {rs.emotional_reliance}
+- comfort_with_silence: {rs.comfort_with_silence}
+- willingness_to_initiate: {rs.willingness_to_initiate}
+- fear_of_rejection: {rs.fear_of_rejection}
+- boundary_sensitivity: {rs.boundary_sensitivity}
+- repair_ability: {rs.repair_ability}
+
+# 현재 감정: {state.current_emotional_state}
+
+# 최근 대화:
+{conversation}
+
+# 분석 지침:
+1. 대화에서 관계에 영향을 주는 상호작용을 식별하세요.
+2. 각 관계 변수의 변경량을 -10~+10 범위로 판단하세요. 변화가 없으면 0.
+3. 기억으로 남길 만한 중요한 순간이 있으면 memories에 추가하세요.
+4. 대화 후 캐릭터의 감정 상태를 한 단어로 표현하세요.
+5. 반드시 아래 JSON 형식만 출력하세요. 다른 텍스트는 포함하지 마세요.
+
+```json
+{{
+  "relationship_changes": {{
+    "trust": 0,
+    "familiarity": 0,
+    "emotional_reliance": 0,
+    "comfort_with_silence": 0,
+    "willingness_to_initiate": 0,
+    "fear_of_rejection": 0,
+    "boundary_sensitivity": 0,
+    "repair_ability": 0
+  }},
+  "memories": [
+    {{
+      "trigger": "트리거유형",
+      "content": "기억 요약 (50자 이내)",
+      "impact": "영향 요약"
+    }}
+  ],
+  "emotional_state": "neutral",
+  "event": null
+}}
+```"""
+
+    def parse_analysis_response(self, response_text: str) -> dict | None:
+        """AI 분석 응답에서 JSON을 파싱한다.
+
+        [v1.0.0] 응답에서 JSON 블록을 추출하고 유효성을 검증한다.
+        파싱 실패 시 None을 반환하여 키워드 폴백으로 전환한다.
+        """
+        text = response_text.strip()
+
+        # JSON 코드 블록 추출
+        if "```json" in text:
+            start = text.index("```json") + 7
+            end = text.index("```", start)
+            text = text[start:end].strip()
+        elif "```" in text:
+            start = text.index("```") + 3
+            end = text.index("```", start)
+            text = text[start:end].strip()
+
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            logger.warning("AI 분석 응답 JSON 파싱 실패")
+            return None
+
+        # 필수 필드 검증
+        if "relationship_changes" not in data:
+            logger.warning("AI 분석 응답에 relationship_changes 없음")
+            return None
+
+        # 변경량 범위 클램핑 (-10~+10)
+        changes = data.get("relationship_changes", {})
+        for key in changes:
+            if isinstance(changes[key], int | float):
+                changes[key] = max(-10, min(10, int(changes[key])))
+
+        return data
+
+    def apply_analysis(
+        self,
+        state: DynamicCharacterState,
+        analysis: dict,
+    ) -> None:
+        """파싱된 AI 분석 결과를 동적 상태에 적용한다.
+
+        [v1.0.0] 관계 변수 갱신, 기억 형성, 감정 전이를 한번에 처리한다.
+        """
+        # 관계 변수 갱신
+        changes = analysis.get("relationship_changes", {})
+        if any(v != 0 for v in changes.values()):
+            self.update_relationship(state, changes)
+
+        # 기억 형성
+        memories = analysis.get("memories", [])
+        for mem in memories:
+            if isinstance(mem, dict) and mem.get("content"):
+                self.add_memory(
+                    state,
+                    trigger_type=mem.get("trigger", "ai_analysis"),
+                    content=mem["content"][:100],
+                    emotional_impact=mem.get("impact", ""),
+                )
+
+        # 감정 상태 전이
+        new_emotion = analysis.get("emotional_state", "")
+        if new_emotion and isinstance(new_emotion, str):
+            state.current_emotional_state = new_emotion
+
+        # 이벤트 기록
+        event_data = analysis.get("event")
+        if event_data and isinstance(event_data, dict) and event_data.get("type"):
+            self.add_event(
+                state,
+                event_type=event_data["type"],
+                description=event_data.get("description", ""),
+                impact_summary=event_data.get("impact", ""),
+            )
+
+        logger.info(
+            "AI 분석 적용 완료: 관계변수=%d개 변경, 기억=%d개 형성, 감정=%s",
+            sum(1 for v in changes.values() if v != 0),
+            len(memories),
+            new_emotion or "(변화 없음)",
+        )
+

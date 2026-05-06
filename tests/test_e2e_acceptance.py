@@ -239,3 +239,101 @@ class TestSC11_DynamicStateEngine:
         assert restored.turn_count == 1
         assert len(restored.memories) == 1
 
+
+class TestSC12_AIAnalysis:
+    """SC-12: AI 분석 프롬프트 생성 + JSON 파싱 + apply 검증."""
+
+    def test_분석_프롬프트_생성(self) -> None:
+        """build_analysis_prompt가 올바른 프롬프트를 생성하는지 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        state = dse.create_initial_state("char_001", "sess_001")
+        prompt = dse.build_analysis_prompt(
+            state, "유리", [("user", "안녕!"), ("assistant", "안녕하세요!")],
+        )
+        assert "캐릭터: 유리" in prompt
+        assert "trust:" in prompt
+        assert "[user]: 안녕!" in prompt
+        assert "relationship_changes" in prompt
+
+    def test_분석_응답_파싱_성공(self) -> None:
+        """정상 JSON 응답 파싱 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        response = '''```json
+{
+  "relationship_changes": {
+    "trust": 3,
+    "familiarity": 2,
+    "emotional_reliance": 0,
+    "comfort_with_silence": 0,
+    "willingness_to_initiate": 1,
+    "fear_of_rejection": -1,
+    "boundary_sensitivity": 0,
+    "repair_ability": 0
+  },
+  "memories": [
+    {
+      "trigger": "praise",
+      "content": "처음으로 감사를 표현함",
+      "impact": "trust+3"
+    }
+  ],
+  "emotional_state": "happy",
+  "event": null
+}
+```'''
+        result = dse.parse_analysis_response(response)
+        assert result is not None
+        assert result["relationship_changes"]["trust"] == 3
+        assert result["relationship_changes"]["fear_of_rejection"] == -1
+        assert len(result["memories"]) == 1
+        assert result["emotional_state"] == "happy"
+
+    def test_분석_응답_파싱_실패_폴백(self) -> None:
+        """잘못된 응답은 None을 반환."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        assert dse.parse_analysis_response("이건 JSON이 아닙니다") is None
+        assert dse.parse_analysis_response('{"no_key": 1}') is None
+
+    def test_분석_결과_적용(self) -> None:
+        """apply_analysis가 상태를 올바르게 변경하는지 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        state = dse.create_initial_state("char_004", "sess_004")
+        initial_trust = state.relationship_state.trust
+
+        analysis = {
+            "relationship_changes": {
+                "trust": 5, "familiarity": 3,
+                "emotional_reliance": 0, "comfort_with_silence": 0,
+                "willingness_to_initiate": 0, "fear_of_rejection": 0,
+                "boundary_sensitivity": 0, "repair_ability": 0,
+            },
+            "memories": [
+                {"trigger": "shared_experience", "content": "함께 산책", "impact": "familiarity+3"},
+            ],
+            "emotional_state": "warm",
+            "event": None,
+        }
+
+        dse.apply_analysis(state, analysis)
+        assert state.relationship_state.trust == initial_trust + 5
+        initial_fam = 20  # RelationshipState 기본값
+        assert state.relationship_state.familiarity == initial_fam + 3
+        assert state.current_emotional_state == "warm"
+        assert len(state.memories) == 1
+        assert state.memories[0].content == "함께 산책"
+
+    def test_변경량_범위_클램핑(self) -> None:
+        """AI가 -10~+10 범위를 벗어나는 값을 반환해도 클램핑되는지 검증."""
+        from chitchat.services.dynamic_state_engine import DynamicStateEngine
+        dse = DynamicStateEngine()
+        response = '{"relationship_changes": {"trust": 50, "familiarity": -30}, "memories": [], "emotional_state": "neutral"}'
+        result = dse.parse_analysis_response(response)
+        assert result is not None
+        assert result["relationship_changes"]["trust"] == 10
+        assert result["relationship_changes"]["familiarity"] == -10
+
+
