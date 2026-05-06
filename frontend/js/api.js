@@ -65,3 +65,16 @@ async function apiDelete(path) {
   }
   return res.json();
 }
+
+/**
+ * HTML 특수문자를 이스케이프한다.
+ * [v1.0.0] providers.js에서 전역 모듈로 이동 (교훈 12번)
+ * @param {string} str
+ * @returns {string}
+ */
+function escapeHtml(str) {
+  const el = document.createElement('span');
+  el.textContent = str;
+  return el.innerHTML;
+}
+

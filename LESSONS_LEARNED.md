@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 프로젝트: chitchat v0.1.0b0
-- 작성일: 2026-04-29
+- 프로젝트: chitchat v1.0.0
+- 작성일: 2026-04-29 (v0.1.0b0) → 갱신: 2026-05-06 (v1.0.0)
 - 목적: 프로젝트 진행 중 축적된 교훈을 기록하여 향후 유사 프로젝트에서 동일 실수를 방지한다.
 
 ---
@@ -95,3 +95,72 @@ P5 스트리밍 관련 코드(`start_stream`, `run_stream`, ChatPage `_on_send`)
 
 - mock Provider를 사용한 스트리밍 통합 테스트를 작성한다.
 - 최소한 `ChatCompletionRequest` 생성 → Provider 호출 경로까지 커버하는 E2E 테스트를 추가한다.
+
+---
+
+## 8. PySide6 → FastAPI+SPA 아키텍처 전환
+
+### 교훈
+
+PySide6 기반 데스크톱 앱을 FastAPI+순수 HTML/CSS/JS SPA로 전환했다. Qt 이벤트 루프와 asyncio 통합의 복잡성, 크로스 플랫폼 빌드 파이프라인 관리 비용이 웹 기반 아키텍처의 단순함 대비 과도했다.
+
+### 대책
+
+- 단일 사용자 로컬 앱은 **경량 웹 서버 + 브라우저 SPA**가 데스크톱 프레임워크보다 개발/배포/디버깅 비용이 낮다.
+- asyncio 기반 서비스 레이어를 유지하면서, 프론트엔드를 완전히 분리하여 양쪽의 복잡성을 격리한다.
+- Qt Signal/Slot 대신 WebSocket 스트리밍으로 실시간 통신을 구현하면 테스트가 훨씬 쉽다.
+
+---
+
+## 9. SQLite 마이그레이션 데드락 (DD-17)
+
+### 교훈
+
+SQLAlchemy `create_engine()` 후 Alembic `run_migrations()`를 실행하면, SQLite의 단일 쓰기 잠금으로 인해 데드락이 발생했다. 또한 uvicorn 내에서 Alembic의 `fileConfig()`가 로거를 파괴하는 부수효과도 발견했다.
+
+### 대책
+
+- `run_migrations()`를 `sqlite3` stdlib로 전환하여 SQLAlchemy pool과 완전 분리한다.
+- `CHITCHAT_PROGRAMMATIC_ALEMBIC=1` 환경변수로 `fileConfig()` 호출을 조건부로 차단한다.
+- 마이그레이션 완료 후에만 SQLAlchemy engine을 생성하는 순서를 강제한다.
+
+---
+
+## 10. 정적 파일 캐시 문제
+
+### 교훈
+
+FastAPI `StaticFiles`로 프론트엔드를 서빙할 때, 브라우저가 JS 파일을 캐시하여 코드 변경이 반영되지 않는 문제가 빈번히 발생했다. 특히 새 페이지 추가 후 기존 코드가 계속 실행되어 디버깅 시간을 낭비했다.
+
+### 대책
+
+- `<script src="...?v=N">` 캐시 버스팅 쿼리 파라미터를 사용한다.
+- 개발 중에는 브라우저 DevTools의 "Disable cache" 옵션을 활성화한다.
+- 향후 빌드 파이프라인 도입 시 파일 해시 기반 캐시 버스팅을 적용한다.
+
+---
+
+## 11. 모달 z-index 레이어링
+
+### 교훈
+
+모달을 `page-container` 안에 배치하면 부모의 `overflow: hidden`이나 `z-index` 스택 컨텍스트에 의해 가려질 수 있다. chat-layout의 CSS가 모달을 덮어버리는 현상이 발생했다.
+
+### 대책
+
+- 모달은 반드시 `document.body` 직속에 추가하고, inline `z-index: 9999`로 최상위 레이어를 보장한다.
+- `position: fixed`로 뷰포트 전체를 덮는 오버레이를 사용한다.
+
+---
+
+## 12. 전역 유틸 함수 분리
+
+### 교훈
+
+`escapeHtml()` 같은 공통 유틸 함수가 `providers.js`에 정의되어 다른 페이지에서 암묵적으로 의존했다. 스크립트 로딩 순서가 바뀌면 `ReferenceError`가 발생할 수 있는 취약점이다.
+
+### 대책
+
+- 공통 유틸 함수는 `api.js`같은 전역 모듈에 분리하여 의존 관계를 명시적으로 만든다.
+- 향후 ES Module 전환 시 `import/export`로 의존성을 명확히 관리한다.
+

@@ -170,8 +170,4 @@ function getKindLabel(kind) {
   return { gemini: 'Gemini', openrouter: 'OpenRouter', lm_studio: 'LM Studio' }[kind] || kind;
 }
 
-function escapeHtml(str) {
-  const el = document.createElement('span');
-  el.textContent = str;
-  return el.innerHTML;
-}
+// [v1.0.0 삭제] escapeHtml() — api.js 전역 모듈로 이동 (교훈 12번, 의존성 명시화)
