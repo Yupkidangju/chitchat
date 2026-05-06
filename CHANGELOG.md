@@ -40,6 +40,9 @@
 - **implementation_summary.md 동기화**: v0.3.0 PySide6 → v1.0.0 FastAPI+SPA 아키텍처 반영
 - **AI 판단 기반 동적 상태 분석**: `build_analysis_prompt` + `parse_analysis_response` + `apply_analysis` — 키워드 폴백 이중 안전장치
 - **SC-12 AI 분석 테스트**: 프롬프트 생성, JSON 파싱(성공/실패), apply 적용, 변경량 클램핑 검증 (200 passed)
+- **profiles REST API**: ModelProfile, ChatProfile, Lorebook, Worldbook CRUD 20개 엔드포인트 (`api/routes/profiles.py`)
+- **프론트엔드 프로필 관리 5종**: models.js, chat_profiles.js, lorebooks.js, worldbooks.js, prompt_order.js
+- **SPA 라우터 완성**: 모든 9개 사이드바 페이지 라우트 연결 (스텁 제거)
 
 ### 수정됨 (v1.0.0)
 

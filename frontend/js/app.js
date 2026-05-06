@@ -30,8 +30,23 @@ async function navigateTo(pageName) {
     case 'providers':
       await renderProviders(pageContainer);
       break;
+    case 'models':
+      await renderModels(pageContainer);
+      break;
     case 'personas':
       await renderPersonas(pageContainer);
+      break;
+    case 'lorebooks':
+      await renderLorebooks(pageContainer);
+      break;
+    case 'worldbooks':
+      await renderWorldbooks(pageContainer);
+      break;
+    case 'chat-profiles':
+      await renderChatProfiles(pageContainer);
+      break;
+    case 'prompt-order':
+      await renderPromptOrder(pageContainer);
       break;
     case 'settings':
       await renderSettings(pageContainer);

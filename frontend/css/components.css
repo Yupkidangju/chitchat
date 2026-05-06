@@ -610,3 +610,186 @@ select.input { cursor: pointer; }
   color: var(--accent);
   font-size: 0.7rem;
 }
+
+/* ============================================================
+ * 프로필 관리 공통 스타일
+ * [v1.0.0] ModelProfile, ChatProfile, Lorebook, Worldbook 공용
+ * ============================================================ */
+
+.profile-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--border-radius);
+  margin-bottom: 0.5rem;
+  background: var(--bg-secondary);
+  transition: border-color 0.2s;
+}
+
+.profile-card:hover {
+  border-color: var(--accent-primary);
+}
+
+.profile-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.profile-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* 체크박스 그룹 */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  max-height: 150px;
+  overflow-y: auto;
+  background: var(--bg-secondary);
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.checkbox-item input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+}
+
+/* 엔트리 아이템 (Lore/World) */
+.entry-item {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius);
+  margin-bottom: 0.4rem;
+  background: var(--bg-secondary);
+}
+
+/* 모달 */
+.modal {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 500px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 1rem;
+}
+
+/* Provider 카드 */
+.provider-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--border-radius);
+  margin-bottom: 0.5rem;
+  background: var(--bg-secondary);
+  transition: border-color 0.2s;
+}
+
+.provider-card:hover {
+  border-color: var(--accent-primary);
+}
+
+.provider-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.provider-kind-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.provider-status.active { color: #4ade80; }
+.provider-status.inactive { color: var(--text-secondary); }
+.key-indicator { font-size: 0.8rem; }
+
+.provider-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+/* 프롬프트 순서 블록 */
+.prompt-block-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: var(--border-radius);
+  margin-bottom: 0.4rem;
+  background: var(--bg-secondary);
+}
+
+.block-number {
+  font-weight: 800;
+  color: var(--accent-primary);
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.block-icon { font-size: 1.1rem; }
+.block-label { font-weight: 600; flex: 1; }
+.block-key { font-size: 0.75rem; }
+
+.block-controls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* 위험 버튼 */
+.btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger:hover {
+  background: var(--danger);
+  color: #fff;
+}

@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from chitchat.services.prompt_service import PromptService
     from chitchat.services.provider_service import ProviderService
     from chitchat.services.vibe_fill_service import VibeFillService
+    from chitchat.services.profile_service import ProfileService
 
     repos = RepositoryRegistry(session_factory)
     key_store = KeyStore()
@@ -71,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         repos, provider_registry, key_store, prompt_service, dynamic_state_engine,
     )
     vibe_fill_service = VibeFillService(repos, provider_registry, key_store)
+    profile_service = ProfileService(repos)
 
     # 앱 상태에 공유 객체 저장 (라우터에서 접근)
     app.state.engine = engine
@@ -82,6 +84,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.chat_service = chat_service
     app.state.vibe_fill_service = vibe_fill_service
     app.state.dynamic_state_engine = dynamic_state_engine
+    app.state.profile_service = profile_service
 
     logger.info("chitchat v1.0.0 서버 시작 — DB: %s", db_path)
 
@@ -115,6 +118,7 @@ def create_app() -> FastAPI:
         chat,
         health,
         personas,
+        profiles,
         providers,
         settings,
     )
@@ -122,6 +126,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api", tags=["health"])
     app.include_router(providers.router, prefix="/api", tags=["providers"])
     app.include_router(personas.router, prefix="/api", tags=["personas"])
+    app.include_router(profiles.router, prefix="/api", tags=["profiles"])
     app.include_router(chat.router, prefix="/api", tags=["chat"])
     app.include_router(settings.router, prefix="/api", tags=["settings"])
 
