@@ -127,6 +127,68 @@ def _get_profile_service(request: Request) -> Any:
     return request.app.state.profile_service
 
 
+# ━━━ UserPersona ━━━
+
+class UserPersonaCreateRequest(BaseModel):
+    """UserPersona 생성/수정 요청."""
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="")
+    speaking_style: str = Field(default="")
+    boundaries: str = Field(default="")
+
+
+class UserPersonaResponse(BaseModel):
+    """UserPersona 응답."""
+    id: str
+    name: str
+    description: str
+    speaking_style: str
+    boundaries: str
+    enabled: bool
+
+
+@router.get("/user-personas")
+async def list_user_personas(request: Request) -> list[UserPersonaResponse]:
+    """모든 UserPersona를 반환한다."""
+    svc = _get_profile_service(request)
+    rows = svc.get_all_user_personas()
+    return [
+        UserPersonaResponse(
+            id=r.id, name=r.name, description=r.description,
+            speaking_style=r.speaking_style, boundaries=r.boundaries,
+            enabled=bool(r.enabled),
+        )
+        for r in rows
+    ]
+
+
+@router.post("/user-personas", status_code=201)
+async def create_user_persona(
+    body: UserPersonaCreateRequest, request: Request,
+) -> UserPersonaResponse:
+    """새 UserPersona를 생성한다."""
+    svc = _get_profile_service(request)
+    row = svc.save_user_persona(
+        name=body.name, description=body.description,
+        speaking_style=body.speaking_style, boundaries=body.boundaries,
+    )
+    return UserPersonaResponse(
+        id=row.id, name=row.name, description=row.description,
+        speaking_style=row.speaking_style, boundaries=row.boundaries,
+        enabled=bool(row.enabled),
+    )
+
+
+@router.delete("/user-personas/{persona_id}")
+async def delete_user_persona(persona_id: str, request: Request) -> dict[str, bool]:
+    """UserPersona를 삭제한다."""
+    svc = _get_profile_service(request)
+    ok = svc.delete_user_persona(persona_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="UserPersona를 찾을 수 없습니다")
+    return {"deleted": True}
+
+
 # ━━━ ModelProfile ━━━
 
 @router.get("/model-profiles")

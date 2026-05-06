@@ -52,8 +52,7 @@ async function renderChat(container) {
 
   // 새 세션 버튼
   document.getElementById('btn-new-session').addEventListener('click', () => {
-    // TODO: 세션 생성 폼
-    alert('채팅 세션 생성은 ChatProfile/UserPersona 선택 후 가능합니다.\n(Phase 6에서 구현 예정)');
+    showNewSessionModal();
   });
 
   // 메시지 전송
@@ -273,3 +272,114 @@ async function refreshDynamicState() {
     body.innerHTML = '<p class="text-secondary">동적 상태 로드 실패</p>';
   }
 }
+
+/**
+ * 새 채팅 세션 생성 모달을 표시한다.
+ * [v1.0.0] ChatProfile + UserPersona 선택 후 세션을 생성한다.
+ */
+async function showNewSessionModal() {
+  // 기존 모달 제거 후 새로 생성 (body 직속, 최상위 레이어)
+  let modal = document.getElementById('session-modal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'session-modal';
+  modal.className = 'modal';
+  modal.style.cssText = 'display:flex; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.6); z-index:9999; justify-content:center; align-items:center;';
+  document.body.appendChild(modal);
+
+  // 의존 데이터 로드
+  let chatProfiles = [];
+  let userPersonas = [];
+  try {
+    [chatProfiles, userPersonas] = await Promise.all([
+      apiGet('/chat-profiles'),
+      apiGet('/user-personas'),
+    ]);
+  } catch { /* 빈 배열 유지 */ }
+
+  const cpOptions = chatProfiles.map(p =>
+    `<option value="${p.id}">${escapeHtml(p.name)}</option>`
+  ).join('');
+
+  // UserPersona가 없으면 자동 생성 옵션 제공
+  let upOptions = userPersonas.map(p =>
+    `<option value="${p.id}">${escapeHtml(p.name)}</option>`
+  ).join('');
+  const hasUserPersonas = userPersonas.length > 0;
+
+  modal.innerHTML = `
+    <div class="modal-content card">
+      <h3 class="card-title">💬 새 채팅 세션</h3>
+      <form id="new-session-form">
+        <div class="form-group">
+          <label>세션 제목</label>
+          <input type="text" id="ns-title" class="input" placeholder="예: 유리와의 첫 대화" required>
+        </div>
+        <div class="form-group">
+          <label>채팅 프로필</label>
+          <select id="ns-chat-profile" class="input" required>
+            <option value="">선택하세요</option>
+            ${cpOptions}
+          </select>
+          ${chatProfiles.length === 0 ? '<p class="text-secondary" style="font-size: 0.8rem; margin-top: 0.3rem;">⚠️ 먼저 채팅 프로필을 생성하세요.</p>' : ''}
+        </div>
+        <div class="form-group">
+          <label>사용자 페르소나</label>
+          ${hasUserPersonas ? `
+            <select id="ns-user-persona" class="input" required>
+              <option value="">선택하세요</option>
+              ${upOptions}
+            </select>
+          ` : `
+            <p class="text-secondary" style="font-size: 0.8rem;">사용자 페르소나가 없습니다. 기본 페르소나를 자동으로 생성합니다.</p>
+            <input type="hidden" id="ns-user-persona" value="__auto_create__">
+          `}
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" ${chatProfiles.length === 0 ? 'disabled' : ''}>생성</button>
+          <button type="button" class="btn" onclick="document.getElementById('session-modal').style.display='none'">취소</button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.getElementById('new-session-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = document.getElementById('ns-title').value;
+    const chatProfileId = document.getElementById('ns-chat-profile').value;
+    let userPersonaId = document.getElementById('ns-user-persona').value;
+
+    if (!chatProfileId) {
+      alert('채팅 프로필을 선택해주세요.');
+      return;
+    }
+
+    // 자동 UserPersona 생성
+    if (userPersonaId === '__auto_create__' || !userPersonaId) {
+      try {
+        const up = await apiPost('/user-personas', {
+          name: '기본 사용자',
+          description: '기본 사용자 페르소나',
+        });
+        userPersonaId = up.id;
+      } catch (err) {
+        alert(`사용자 페르소나 생성 실패: ${err.message}`);
+        return;
+      }
+    }
+
+    try {
+      const session = await apiPost('/sessions', {
+        title,
+        chat_profile_id: chatProfileId,
+        user_persona_id: userPersonaId,
+      });
+      modal.style.display = 'none';
+      await loadSessions();
+      await selectSession(session.id);
+    } catch (err) {
+      alert(`세션 생성 실패: ${err.message}`);
+    }
+  });
+}
+
