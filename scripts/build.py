@@ -119,26 +119,109 @@ def get_platform_info() -> dict[str, str]:
 # 유틸리티
 # ──────────────────────────────────────────────────────────────
 
-def ensure_venv() -> None:
-    """가상환경이 활성화되어 있지 않다면 프로젝트 내의 .venv 또는 venv를 찾아 재실행한다."""
-    if os.environ.get("VIRTUAL_ENV"):
-        return
+def _is_in_venv() -> bool:
+    """현재 Python이 가상환경 내에서 실행 중인지 확인한다.
 
+    sys.prefix와 sys.base_prefix가 다르면 venv 내부이다.
+    os.execv로 재실행한 경우 VIRTUAL_ENV 환경변수도 확인한다.
+    """
+    return (
+        sys.prefix != sys.base_prefix
+        or bool(os.environ.get("VIRTUAL_ENV"))
+    )
+
+
+def _find_venv_python() -> tuple[Path, Path] | None:
+    """프로젝트 내 .venv 또는 venv의 Python 실행 파일을 찾는다.
+
+    반환: (venv_path, python_exe) 또는 None
+    """
     for venv_name in [".venv", "venv"]:
         venv_path = PROJECT_ROOT / venv_name
         if venv_path.is_dir():
             if platform.system() == "Windows":
-                bin_dir = venv_path / "Scripts"
-                python_exe = bin_dir / "python.exe"
+                python_exe = venv_path / "Scripts" / "python.exe"
             else:
-                bin_dir = venv_path / "bin"
-                python_exe = bin_dir / "python"
+                python_exe = venv_path / "bin" / "python"
+            if python_exe.exists():
+                return venv_path, python_exe
+    return None
 
-            if python_exe.exists() and str(Path(sys.executable).resolve()) != str(python_exe.resolve()):
-                print(f"🔄 가상환경({venv_name}) 파이썬으로 재실행합니다: {python_exe}")
-                os.environ["VIRTUAL_ENV"] = str(venv_path)
-                os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
-                os.execv(str(python_exe), [str(python_exe)] + sys.argv)
+
+def _create_venv() -> tuple[Path, Path] | None:
+    """프로젝트 루트에 .venv를 자동 생성한다.
+
+    반환: (venv_path, python_exe) 또는 실패 시 None
+    """
+    venv_path = PROJECT_ROOT / ".venv"
+    print(f"  {_cyan('▶')} 가상환경 생성 중: {venv_path}")
+    try:
+        import venv as venv_mod
+        venv_mod.create(str(venv_path), with_pip=True)
+    except Exception:
+        # venv 모듈 실패 시 subprocess로 시도
+        result = subprocess.run(
+            [sys.executable, "-m", "venv", str(venv_path)],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            print(f"  {_red('✗')} 가상환경 생성 실패: {result.stderr.strip()}")
+            return None
+
+    if platform.system() == "Windows":
+        python_exe = venv_path / "Scripts" / "python.exe"
+    else:
+        python_exe = venv_path / "bin" / "python"
+
+    if python_exe.exists():
+        print(f"  {_green('✓')} 가상환경 생성 완료")
+        return venv_path, python_exe
+    print(f"  {_red('✗')} 가상환경 Python을 찾을 수 없습니다")
+    return None
+
+
+def _reexec_in_venv(venv_path: Path, python_exe: Path) -> None:
+    """현재 스크립트를 venv Python으로 재실행한다.
+
+    os.execv로 프로세스를 완전히 교체한다.
+    """
+    if platform.system() == "Windows":
+        bin_dir = venv_path / "Scripts"
+    else:
+        bin_dir = venv_path / "bin"
+
+    print(f"  {_cyan('▶')} venv Python으로 재실행: {python_exe}")
+    os.environ["VIRTUAL_ENV"] = str(venv_path)
+    os.environ["PATH"] = f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"
+    os.execv(str(python_exe), [str(python_exe)] + sys.argv)
+
+
+def ensure_venv() -> None:
+    """가상환경이 활성화되어 있지 않다면 자동으로 감지/생성하고 재실행한다.
+
+    동작 순서:
+    1. sys.prefix != sys.base_prefix 검사로 venv 내부인지 확인
+    2. venv 내부가 아니면 .venv 또는 venv 검색
+    3. 없으면 .venv를 자동 생성
+    4. venv의 Python으로 현재 스크립트를 재실행 (os.execv)
+    """
+    if _is_in_venv():
+        return
+
+    # 기존 venv 검색
+    found = _find_venv_python()
+
+    # 없으면 자동 생성
+    if found is None:
+        print(f"\n  {_yellow('△')} 가상환경을 찾을 수 없습니다 — 자동 생성합니다")
+        found = _create_venv()
+        if found is None:
+            print(f"  {_red('✗')} 가상환경 생성에 실패했습니다. 수동으로 생성해주세요:")
+            print(f"      python3 -m venv {PROJECT_ROOT / '.venv'}")
+            sys.exit(1)
+
+    venv_path, python_exe = found
+    _reexec_in_venv(venv_path, python_exe)
 
 
 def run_cmd(
@@ -234,9 +317,51 @@ def get_dir_size(path: Path) -> int:
 # 빌드 단계
 # ──────────────────────────────────────────────────────────────
 
+def _ensure_project_installed() -> bool:
+    """프로젝트 패키지(chitchat)가 설치되어 있는지 확인하고, 없으면 설치한다."""
+    try:
+        import chitchat  # noqa: F401
+        return True
+    except ImportError:
+        pass
+
+    # pip install -e ".[dev]" 로 개발 모드 설치
+    print(f"  {_cyan('▶')} 프로젝트 의존성 설치 중 (pip install -e '.[dev]')...")
+    ok, _ = run_cmd(
+        [sys.executable, "-m", "pip", "install", "-e", ".[dev]"],
+        capture=True,
+    )
+    if ok:
+        print(f"  {_green('✓')} 프로젝트 의존성 설치 완료")
+    else:
+        print(f"  {_red('✗')} 프로젝트 의존성 설치 실패")
+    return ok
+
+
+def _ensure_pyinstaller() -> bool:
+    """PyInstaller가 설치되어 있는지 확인하고, 없으면 자동 설치한다."""
+    try:
+        import PyInstaller  # noqa: F401
+        return True
+    except ImportError:
+        pass
+
+    print(f"  {_cyan('▶')} PyInstaller 자동 설치 중...")
+    ok, _ = run_cmd(
+        [sys.executable, "-m", "pip", "install", "pyinstaller>=6.20,<7"],
+        capture=True,
+    )
+    if ok:
+        print(f"  {_green('✓')} PyInstaller 설치 완료")
+    else:
+        print(f"  {_red('✗')} PyInstaller 설치 실패")
+    return ok
+
+
 def check_prerequisites() -> tuple[bool, list[str]]:
     """빌드에 필요한 모든 전제 조건을 확인한다.
 
+    PyInstaller와 프로젝트 의존성이 없으면 자동 설치를 시도한다.
     반환: (모두 통과 여부, 경고 메시지 리스트)
     """
     warnings: list[str] = []
@@ -250,22 +375,47 @@ def check_prerequisites() -> tuple[bool, list[str]]:
     else:
         print(f"  {_green('✓')} Python {py_ver.major}.{py_ver.minor}.{py_ver.micro}")
 
-    # 2. PyInstaller
+    # 2. 가상환경
+    if _is_in_venv():
+        venv_path = os.environ.get("VIRTUAL_ENV", sys.prefix)
+        print(f"  {_green('✓')} 가상환경: {venv_path}")
+    else:
+        warnings.append("가상환경 미활성화 — ensure_venv()를 건너뛴 경우입니다")
+        print(f"  {_yellow('△')} 가상환경 미활성화")
+
+    # 3. 프로젝트 의존성 (chitchat 패키지)
+    try:
+        import chitchat  # noqa: F401
+        print(f"  {_green('✓')} 프로젝트 패키지 (chitchat)")
+    except ImportError:
+        print(f"  {_yellow('△')} 프로젝트 패키지 미설치 — 자동 설치합니다")
+        if not _ensure_project_installed():
+            all_ok = False
+
+    # 4. PyInstaller (없으면 자동 설치)
     try:
         import PyInstaller
         print(f"  {_green('✓')} PyInstaller {PyInstaller.__version__}")
     except ImportError:
-        print(f"  {_red('✗')} PyInstaller가 설치되어 있지 않습니다")
-        all_ok = False
+        print(f"  {_yellow('△')} PyInstaller 미설치 — 자동 설치합니다")
+        if _ensure_pyinstaller():
+            try:
+                import PyInstaller
+                print(f"  {_green('✓')} PyInstaller {PyInstaller.__version__}")
+            except ImportError:
+                print(f"  {_red('✗')} PyInstaller 설치 확인 실패")
+                all_ok = False
+        else:
+            all_ok = False
 
-    # 3. chitchat.spec
+    # 5. chitchat.spec
     if SPEC_FILE.exists():
         print(f"  {_green('✓')} chitchat.spec")
     else:
         print(f"  {_red('✗')} chitchat.spec 파일 없음")
         all_ok = False
 
-    # 4. frontend 디렉토리
+    # 6. frontend 디렉토리
     if FRONTEND_DIR.exists():
         file_count = sum(1 for _ in FRONTEND_DIR.rglob("*") if _.is_file())
         print(f"  {_green('✓')} frontend/ ({file_count}개 파일)")
@@ -273,16 +423,8 @@ def check_prerequisites() -> tuple[bool, list[str]]:
         print(f"  {_red('✗')} frontend/ 디렉토리 없음")
         all_ok = False
 
-    # 5. 가상환경
-    if os.environ.get("VIRTUAL_ENV"):
-        print(f"  {_green('✓')} 가상환경 활성화됨")
-    else:
-        warnings.append("가상환경 미활성화 — 시스템 Python으로 빌드됩니다")
-        print(f"  {_yellow('△')} 가상환경 미활성화")
-
-    # 6. OS별 추가 확인
+    # 7. OS별 추가 확인
     if platform.system() == "Linux":
-        # UPX 존재 확인 (선택)
         if shutil.which("upx"):
             print(f"  {_green('✓')} UPX 압축기 사용 가능")
         else:
@@ -290,13 +432,6 @@ def check_prerequisites() -> tuple[bool, list[str]]:
             print(f"  {_yellow('△')} UPX 미설치 (선택)")
 
     return all_ok, warnings
-
-
-def install_pyinstaller() -> bool:
-    """PyInstaller를 설치한다."""
-    print(f"\n  {_cyan('▶')} PyInstaller 설치 중...")
-    ok, _ = run_cmd([sys.executable, "-m", "pip", "install", "pyinstaller>=6.20,<7"])
-    return ok
 
 
 def run_code_verification(interactive: bool) -> bool:
@@ -502,20 +637,8 @@ def main() -> None:
     prereq_ok, prereq_warnings = check_prerequisites()
 
     if not prereq_ok:
-        # PyInstaller가 없으면 설치 제안
-        try:
-            import PyInstaller  # noqa: F401
-        except ImportError:
-            if args.interactive:
-                if prompt_yes_no("PyInstaller를 지금 설치하시겠습니까?"):
-                    if install_pyinstaller():
-                        prereq_ok = True
-            else:
-                print(f"\n  {_red('✗')} PyInstaller를 설치해주세요: pip install pyinstaller>=6.20")
-
-        if not prereq_ok:
-            print(f"\n  {_red('✗')} 전제 조건 미충족 — 빌드를 중단합니다.")
-            sys.exit(1)
+        print(f"\n  {_red('✗')} 전제 조건 미충족 — 빌드를 중단합니다.")
+        sys.exit(1)
 
     if prereq_warnings:
         for w in prereq_warnings:
