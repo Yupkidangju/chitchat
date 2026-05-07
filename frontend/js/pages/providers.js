@@ -3,11 +3,13 @@
 //
 // Provider CRUD, 연결 테스트, 모델 목록 가져오기를 UI에서 처리한다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
 /**
  * Provider 페이지를 렌더링한다.
  * @param {HTMLElement} container - #page-container
  */
-async function renderProviders(container) {
+export async function renderProviders(container) {
   container.innerHTML = `
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -27,6 +29,20 @@ async function renderProviders(container) {
   // 새 공급자 추가 버튼
   document.getElementById('btn-add-provider').addEventListener('click', () => {
     showProviderForm();
+  });
+
+  // [v1.1.1] 이벤트 위임 — data-action 기반 핸들러
+  container.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    e.stopPropagation();
+    const actionId = el.dataset.id;
+    switch (el.dataset.action) {
+      case 'testProvider': testProvider(actionId); break;
+      case 'fetchModels': fetchModels(actionId); break;
+      case 'deleteProvider': deleteProvider(actionId); break;
+      case 'closeProviderForm': closeProviderForm(); break;
+    }
   });
 }
 
@@ -58,14 +74,15 @@ async function loadProviders() {
           ${p.has_api_key ? '<span class="key-indicator">🔑</span>' : ''}
         </div>
         <div class="provider-actions">
-          <button class="btn btn-sm" onclick="testProvider('${p.id}')">테스트</button>
-          <button class="btn btn-sm" onclick="fetchModels('${p.id}')">모델 가져오기</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteProvider('${p.id}')">삭제</button>
+          <button class="btn btn-sm" data-action="testProvider" data-id="${p.id}">테스트</button>
+          <button class="btn btn-sm" data-action="fetchModels" data-id="${p.id}">모델 가져오기</button>
+          <button class="btn btn-sm btn-danger" data-action="deleteProvider" data-id="${p.id}">삭제</button>
         </div>
       </div>
     `).join('');
   } catch (err) {
-    listEl.innerHTML = `<p style="color: var(--danger);">로드 실패: ${escapeHtml(err.message)}</p>`;
+    showToast(`로드 실패: ${err.message}`, 'error', 5000);
+    listEl.innerHTML = '<p class="session-empty">데이터를 불러올 수 없습니다</p>';
   }
 }
 
@@ -105,7 +122,7 @@ function showProviderForm(existing = null) {
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">${existing ? '수정' : '생성'}</button>
-          <button type="button" class="btn" onclick="closeProviderForm()">취소</button>
+          <button type="button" class="btn" data-action="closeProviderForm">취소</button>
         </div>
       </form>
     </div>
@@ -172,3 +189,5 @@ function getKindLabel(kind) {
 }
 
 // [v1.0.0 삭제] escapeHtml() — api.js 전역 모듈로 이동 (교훈 12번, 의존성 명시화)
+
+

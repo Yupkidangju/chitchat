@@ -586,71 +586,79 @@ Vibe Fill UX 흐름:
 
 ### 10.6 로어북 페이지
 
-[v0.2.0] Vibe Fill Phase 2에서 전면 개편됨.
+[v1.1.0] Vibe Fill Phase 2 완전 구현됨.
 
 목표: 키워드 트리거 기반 로어 엔트리를 관리하고, 바이브 텍스트로 AI가 자동 생성하는 기능을 제공한다.
 
 구조:
 
-1. 좌측: 로어북 목록 + 로어북 편집
-2. 중앙: 엔트리 목록 ([우선순위] 제목 형식)
-3. 우측: QScrollArea 기반 편집 영역
-   - ✨ Vibe Fill 패널 (AI Persona 선택 + 바이브 입력 + Provider/Model)
-   - 생성 미리보기 체크리스트
-   - 수동 엔트리 편집 폼
+1. 로어북 목록 (카드 + 클릭으로 엔트리 표시)
+2. 엔트리 목록 (제목 + 키워드 + 내용 미리보기)
+   - "✨ AI 생성" 버튼 → Vibe Fill 모달
+   - "+ 수동 추가" 버튼 → 수동 엔트리 폼
+   - 각 엔트리에 "편집" / "삭제" 버튼
 
-Vibe Fill UX 흐름:
+Vibe Fill UX 흐름 (v1.1.0 구현):
 
-1. 로어북 선택 (필수)
-2. AI Persona 선택 (선택 — 캐릭터 맥락 주입)
-3. 바이브 텍스트 입력 (예: "고서관의 유물, 비밀 장소, 저주된 책들")
-4. Provider + Model 선택
-5. "✨ AI로 엔트리 생성" 클릭 → 비동기 LLM 호출
-6. 결과가 **미리보기 체크리스트**로 표시 (기본 전체 체크)
-7. 사용자가 원치 않는 엔트리 체크 해제
-8. "📥 선택 항목 추가 저장" 클릭 → 체크된 것만 DB에 Append
-9. 반복 사용 가능 (기존 엔트리 유지, 새 바이브마다 중복 방지 컨텍스트 자동 주입)
+1. 로어북 선택 → 엔트리 목록 표시
+2. "✨ AI 생성" 클릭 → 모달 오픈
+3. 모달 내 캐릭터(페르소나) 복수 선택 체크박스 (GET /personas 로드)
+4. 바이브 텍스트 입력
+5. Provider 드롭다운 → Model 드롭다운 (연동 갱신)
+6. "🎨 생성" 클릭 → `POST /lorebooks/{id}/vibe-fill` 호출
+7. 서버에서 VibeFillService.generate_lore_entries() → LLM 호출 → 자동 DB 저장
+8. 생성된 엔트리 미리보기 표시 + 목록 자동 새로고침
+9. 반복 사용 가능 (기존 엔트리 유지, 중복 방지 컨텍스트 자동 주입)
+
+수동 편집 (v1.1.0 신규):
+
+- 엔트리 "편집" 클릭 → 편집 모달 (제목, 키워드, 내용, 우선순위, 활성화)
+- "저장" → `PUT /lore-entries/{id}` 호출
 
 규칙:
 
 - 로어북 선택 없이 Vibe Fill 불가.
-- 기존 수동 엔트리 편집/삭제 기능 유지.
+- 수동 엔트리 생성/편집/삭제 모두 지원.
 - Save Entry는 title, 최소 1개 activation key, content 필수.
 - Priority 범위: 0~1000.
 - AI 생성 시 최대 10개 엔트리 제한.
 
 ### 10.7 월드북 페이지
 
-[v0.2.0] Vibe Fill Phase 3에서 전면 개편됨.
+[v1.1.0] Vibe Fill Phase 3 완전 구현됨.
 
 목표: 항상 삽입되는 세계관 엔트리를 관리하고, 바이브 텍스트로 AI가 10개 카테고리별 세계관을 자동 생성하는 기능을 제공한다.
 
 구조:
 
-1. 좌측: 월드북 목록 + 월드북 편집
-2. 중앙: 엔트리 목록 ([우선순위] 제목 형식)
-3. 우측: QScrollArea 기반 편집 영역
-   - ✨ Vibe Fill 패널 (AI Persona×2 + Lorebook×2 + 바이브 + 카테고리 체크박스 + Provider/Model)
-   - QProgressBar 진행률 표시
-   - 생성 미리보기 체크리스트
-   - 수동 엔트리 편집 폼
+1. 월드북 목록 (카드 + 클릭으로 엔트리 표시)
+2. 엔트리 목록 (제목 + 내용 미리보기)
+   - "✨ AI 생성" 버튼 → Vibe Fill 모달
+   - "+ 수동 추가" 버튼 → 수동 엔트리 폼
+   - 각 엔트리에 "편집" / "삭제" 버튼
 
 카테고리 (10개):
 
 역사, 지리, 세력/국가, 종족, 마법/기술, 경제, 종교/신화, 던전/위험지대, 일상/문화, 규칙/법칙
 
-Vibe Fill UX 흐름:
+Vibe Fill UX 흐름 (v1.1.0 구현):
 
-1. 월드북 선택 (필수)
-2. AI Persona 복수 선택 (선택)
-3. Lorebook 복수 선택 (선택)
-4. 바이브 텍스트 입력
-5. 카테고리 체크박스 선택 (기본 전체 체크)
-6. Provider + Model 선택
-7. "✨ AI로 세계관 생성" 클릭
-8. 진행률 표시: "████░░ 2/4 — 종족, 마법, 경제 생성 중..."
-9. 전체 완료 → 미리보기 체크리스트
-10. 체크 on/off → "📥 선택 항목 추가 저장"
+1. 월드북 선택 → 엔트리 목록 표시
+2. "✨ AI 생성" 클릭 → 모달 오픈
+3. 모달 내:
+   - 캐릭터(페르소나) 복수 선택 체크박스
+   - 로어북 복수 선택 체크박스
+   - 카테고리 10개 체크박스 (기본 전체 선택)
+   - 바이브 텍스트 입력
+   - Provider + Model 드롭다운 (연동 갱신)
+4. "🌍 생성" 클릭 → `POST /worldbooks/{id}/vibe-fill` 호출
+5. 서버에서 카테고리를 2~3개씩 청크 분할하여 다중 LLM 호출
+6. 생성된 엔트리 자동 DB 저장 → 미리보기 표시 + 목록 새로고침
+
+수동 편집 (v1.1.0 신규):
+
+- 엔트리 "편집" 클릭 → 편집 모달 (제목, 내용, 우선순위, 활성화)
+- "저장" → `PUT /world-entries/{id}` 호출
 
 청크 분할 알고리즘:
 
@@ -661,7 +669,7 @@ Vibe Fill UX 흐름:
 규칙:
 
 - 월드북 선택 없이 Vibe Fill 불가.
-- 기존 수동 엔트리 편집/삭제 기능 유지.
+- 수동 엔트리 생성/편집/삭제 모두 지원.
 - Entry content limit: 6000 characters.
 
 ### 10.8 채팅 프로필 페이지
@@ -1276,9 +1284,9 @@ index.html
     ├── chat.js .............. ✅ 3컬럼 레이아웃 + WebSocket 스트리밍 + 동적 상태 패널
     ├── providers.js ......... ✅ Provider CRUD + 연결 테스트 + 모델 캐시
     ├── models.js ............ ✅ ModelProfile CRUD (Provider 연동 모델 선택)
-    ├── personas.js .......... ✅ VibeFill AI Persona 생성/관리
-    ├── lorebooks.js ......... ✅ Lorebook + LoreEntry CRUD (activation_keys 쉼표 구분)
-    ├── worldbooks.js ........ ✅ Worldbook + WorldEntry CRUD
+    ├── personas.js .......... ✅ VibeFill AI Persona 생성/관리 + 편집 (섹션별 접이식 + JSON 토글)
+    ├── lorebooks.js ......... ✅ Lorebook + LoreEntry CRUD + AI Vibe Fill + 수동 편집
+    ├── worldbooks.js ........ ✅ Worldbook + WorldEntry CRUD + AI Vibe Fill + 수동 편집
     ├── chat_profiles.js ..... ✅ ChatProfile 조합 (ModelProfile + Persona + LB + WB)
     ├── prompt_order.js ...... ✅ 프롬프트 블록 순서 편집 (▲▼)
     └── settings.js .......... ✅ 사용자 설정 (i18n 로케일 등)

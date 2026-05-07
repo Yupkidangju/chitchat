@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 문서 버전: `v1.0.0`
-- 상위 문서: `spec.md v1.0.0`
+- 문서 버전: `v1.1.1`
+- 상위 문서: `spec.md v1.1`
 - 목적: 처음 이 프로젝트를 클론한 사람이 이 문서만 보고 첫 실행을 성공시켜야 한다.
 
 ---
@@ -297,12 +297,28 @@ alembic downgrade -1
 ## 10. 배포 전 체크리스트
 
 - [x] `ruff check .` 경고 없음
-- [x] `pytest -q` 전체 통과 (213건)
+- [x] `pytest -q` 전체 통과 (213건+)
 - [x] SC-01~02, SC-06~08 수용 테스트 통과
-- [ ] SC-03~05, SC-09 수용 테스트 (실제 Provider API 필요, 수동 확인)
+- [x] SC-09 스트리밍 Stop 취소 (v1.1.1)
+- [ ] SC-03~05 수용 테스트 (실제 Provider API 필요, 수동 확인)
 - [x] API Key가 SQLite에 평문으로 저장되지 않음 확인
-- [x] CHANGELOG.md에 v1.0.0 항목 기록
+- [x] CHANGELOG.md에 v1.1.1 항목 기록
 - [x] README.md 다국어 작성 완료
+
+---
+
+## 10.1 wheel 배포 제약 사항
+
+> **주의**: `pip wheel . --no-deps`로 생성된 wheel에는 `frontend/`(정적 웹 파일)과 `alembic/`(DB 마이그레이션)이 포함되지 않는다.
+> 이들은 `src/chitchat/` 패키지 밖에 위치하기 때문이다.
+
+| 배포 방식 | frontend | alembic | 사용 가능 여부 |
+|---|:---:|:---:|:---:|
+| `pip install -e .` (개발) | ✅ | ✅ | 개발 환경 전용 |
+| PyInstaller 빌드 | ✅ | ✅ | 프로덕션 권장 |
+| `pip install chitchat-*.whl` | ❌ | ❌ | **사용 불가** |
+
+PyPI wheel 배포를 지원하려면 `frontend/`와 `alembic/`을 `src/chitchat/` 하위로 이동하는 구조 리팩토링이 필요하다.
 
 ---
 

@@ -9,6 +9,52 @@
 
 ## [미출시]
 
+### 수정됨 (v1.1.2: 6차 감사 Remediation — 인라인 이벤트 완전 제거)
+
+- **onclick 인라인 핸들러 완전 제거**: `lorebooks.js`(L156), `worldbooks.js`(L156)에 잔존하던 `onclick='showLoreEntryEditModal(${JSON.stringify(e)...})'` 안티 패턴을 `data-action` + 이벤트 위임으로 전환. ES6 모듈 스코프 격리 100% 달성
+- **빈 window 브릿지 주석 정리**: 6개 페이지 모듈(chat_profiles, lorebooks, worldbooks, personas, providers, models) 하단의 `// [v1.1.1] window 브릿지` 비활성 주석 잔해 삭제
+- **개별 엔트리 조회 API 추가**: `GET /lorebooks/entries/{entry_id}`, `GET /worldbooks/entries/{entry_id}` 엔드포인트 신설 — 이벤트 위임에서 entry ID만으로 편집 모달 데이터를 가져오기 위해 필요
+
+### 수정됨 (v1.1.1: 구현 감사 Remediation)
+
+- **동적 상태 갱신 수정**: `chat_service.py`에서 `cp.ai_persona_id`(존재하지 않는 속성) → `cp.ai_persona_ids_json`(JSON 배열) 기반으로 수정. 첫 번째 페르소나를 주요 캐릭터로 사용
+- **SC-09 스트리밍 Stop 취소**: WebSocket 핸들러를 receive-while-streaming 동시 실행 구조로 재설계. 스트리밍 중에도 cancel 메시지를 수신하여 `asyncio.Task.cancel()`로 즉시 중단
+- **PyInstaller 번들 마이그레이션 수정**: `migrations.py`가 frozen 환경에서 `sys._MEIPASS` 기준으로 `alembic.ini`와 `alembic/`을 탐색하도록 수정
+- **런타임 경로 정합성**: `app.py`의 하드코딩 `~/.chitchat/` → `AppSettings` 기반 OS별 경로(`config/paths.py`)로 전환. 기존 경로 DB 자동 마이그레이션 구현
+- **ruff E402 해소**: `alembic/env.py`의 `import os` 위치 상단 이동, ruff exclude에 `output/`, `build/` 추가
+- **mypy 0 errors**: `DynamicCharacterState` import 정리, dict generic type-arg 추가, `_dse` 유니온 좁히기
+- **wheel 제약 문서화**: BUILD_GUIDE에 wheel 배포 제약 사항(frontend/alembic 미포함) 명시
+- **모달 DOM 메모리 누수 수정**: `chat_session.js` 취소/완료 시 `display='none'` → `.remove()`로 DOM 완전 제거
+- **VibeFill 연쇄 방어 로직**: `build_world_prompt()`에서 prev_titles를 최대 30개 클램핑 + 특수문자 제거
+- **Keyring Fallback UI 안내**: `providers.py`에서 `KeyStoreError`를 422 + 설치 안내 메시지로 변환
+- **DI 완전 적용**: `api/dependencies.py` 신설 + 모든 라우터(chat/providers/profiles/personas/settings) 및 **WebSocket 엔드포인트**에서 `request.app.state`/`websocket.app.state` 직접 접근 전면 제거, `Depends()` 기반 서비스 주입으로 전환
+- **에러 표시 UX 전면 일원화**: 전체 프론트엔드 14개소의 `innerHTML` 인라인 에러(`var(--danger)` 스타일) → `showToast()` + 빈 상태 메시지로 통일 (chat_session, lorebooks, worldbooks, personas, providers, models, chat_profiles, settings, chat_composer, prompt_order)
+- **WebSocket 좀비 Task 방어**: `chat_websocket` 핸들러에 `finally` 블록 추가 — 클라이언트 강제 종료 시에도 streaming_task를 확실히 취소
+- **spec.md 아키텍처 규칙 추가**: §5.1.1 FastAPI DI 강제 규칙(WebSocket 포함), §5.1.2 프론트엔드 ES6 모듈화 규칙
+- **Repository 메서드 추가**: `LoreEntryRepository.get_by_id()`, `WorldEntryRepository.get_by_id()` 신설 (수동 편집 엔드포인트 지원)
+- **ES6 모듈 전면 전환**: `index.html`에서 13개 `<script>` 순차 로드 → `<script type="module" src="/js/app.js">` 단일 진입점으로 전환. 모든 JS 파일에 `import`/`export` 적용
+- **StateStore 싱글톤 도입**: `store.js` 신설 — Pub-Sub 패턴 중앙 상태 관리자. `currentSessionId`, `isStreaming`, `currentPage` 전역 변수 제거 → `getState()`/`setState()` API로 전환
+- **인라인 onclick 전면 제거 + 이벤트 위임**: 모든 7개 페이지 모듈(providers, models, personas, lorebooks, worldbooks, chat_profiles, prompt_order)에서 `onclick="..."` 인라인 핸들러 → `data-action` + `container.addEventListener` 이벤트 위임으로 완전 전환
+- **window 브릿지 완전 삭제**: ES6 모듈 스코프 격리 100% 달성. `window.funcName = funcName` 패턴 완전 제거
+- **순환 import 해소**: `chat_utils.js` 신설 — `renderMessageBubble`을 분리하여 `chat_session.js` ↔ `chat_composer.js` 순환 의존성 방지. 동적 `import()` 전략 적용
+- **개발 환경 캐시 방지**: `NoCacheMiddleware` 추가 — JS/CSS/HTML 파일에 `Cache-Control: no-store` 헤더 자동 적용 (frozen 번들 환경 제외)
+
+---
+
+### 추가됨 (v1.1.0: 로어북/월드북 AI 생성 + 수동 편집)
+
+- **로어북 AI Vibe Fill**: 캐릭터(페르소나) 복수 선택 + 바이브 입력으로 로어 엔트리 자동 생성
+  - `POST /lorebooks/{id}/vibe-fill` 엔드포인트 신규
+  - VibeFillService.generate_lore_entries() 연동, 생성 즉시 DB 자동 저장
+  - 프론트엔드 AI 생성 모달: Provider/Model 드롭다운, 캐릭터 체크박스
+- **월드북 AI Vibe Fill**: 캐릭터 + 로어북 복수 참조 + 카테고리 10개 선택으로 세계관 엔트리 자동 생성
+  - `POST /worldbooks/{id}/vibe-fill` 엔드포인트 신규
+  - 카테고리 2~3개씩 청크 분할 다중 LLM 호출 (토큰 제한 대응)
+  - 프론트엔드 AI 생성 모달: 캐릭터/로어북/카테고리 체크박스, Provider/Model 드롭다운
+- **LoreEntry 수동 편집**: `PUT /lore-entries/{id}` 엔드포인트 + 편집 모달 UI
+- **WorldEntry 수동 편집**: `PUT /world-entries/{id}` 엔드포인트 + 편집 모달 UI
+- **페르소나 수동 편집**: `PUT /personas/{id}` 엔드포인트 + 9섹션 접이식 편집 UI + JSON 원문 편집 토글
+
 ### 추가됨 (v1.0.0: VibeSmith 동적 페르소나 + Web 전환)
 
 - **프롬프트 Inspector**: 채팅 우측 패널에 탭 방식 Inspector 추가

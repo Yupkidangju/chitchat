@@ -233,6 +233,40 @@ db -> SQLAlchemy only
 secrets -> keyring only
 ```
 
+#### 5.1.1 FastAPI 의존성 주입 규칙 (v1.1.1)
+
+FastAPI 라우터(`src/chitchat/api/routes/*.py`)의 **모든 엔드포인트(REST 및 WebSocket 포함)**는 `request.app.state` 또는 `websocket.app.state`에 직접 접근하는 것을 **엄격히 금지**한다. 반드시 `src/chitchat/api/dependencies.py`에 정의된 Provider 함수를 `Depends()`로 주입받아 사용해야 한다.
+
+```python
+# 올바른 예시 (REST)
+@router.get("/sessions")
+async def list_sessions(svc: ChatService = Depends(get_chat_service)):
+    ...
+
+# 올바른 예시 (WebSocket)
+@router.websocket("/ws/chat/{session_id}")
+async def chat_websocket(
+    websocket: WebSocket,
+    session_id: str,
+    chat_service: ChatService = Depends(get_chat_service),
+):
+    ...
+
+# 금지 — 아래 패턴은 절대 사용하지 않는다
+svc = request.app.state.chat_service  # ❌
+svc = websocket.app.state.chat_service  # ❌
+```
+
+#### 5.1.2 프론트엔드 아키텍처 규칙 (v1.1.1 구현 완료)
+
+프론트엔드는 번들러 없이 Native 브라우저 ES6 모듈 기능을 사용한다. `index.html`에서는 최상위 모듈 단 하나만 `<script type="module" src="/js/app.js"></script>`로 로드하고, 나머지 모든 파일은 `import`/`export`를 사용해 의존성을 명시적으로 주입한다.
+
+1. **ES6 모듈 구조**: `index.html` → `app.js` (단일 진입점) → 각 페이지 모듈 `import`. 모든 JS 파일에 `export` 필수.
+2. **상태 캡슐화**: `js/store.js` StateStore 싱글톤 — `getState(key)`/`setState(key, value)`/`subscribe(key, callback)` API로만 상태 관리. 전역 변수(`window` 또는 모듈 루트의 공유 `let/var`)에 애플리케이션 상태를 저장하는 것을 **엄격히 금지**.
+3. **에러 핸들링 일원화**: API 통신 에러는 `showToast()`로 일원화. `innerHTML`에 에러 메시지를 직접 주입하는 패턴을 **금지**.
+4. **이벤트 바인딩 (강제)**: 모든 동적 DOM 생성 시 `onclick`, `onchange` 등의 HTML 인라인 이벤트 핸들러 사용을 **엄격히 금지**. 반드시 요소에 `data-action`, `data-id` 등의 Data 속성을 부여한 뒤, `container.addEventListener('click', ...)` 이벤트 위임 방식으로 처리해야 한다. 모듈 내부 함수를 `window` 객체에 할당하는 것을 **금지**.
+5. **순환 import 방지**: `chat_utils.js`에 공용 함수(`renderMessageBubble` 등)를 분리하여 `chat_session.js` ↔ `chat_composer.js` 순환 의존성을 방지한다. 동적 `import()`는 순환이 불가피할 때만 허용.
+
 ### 5.2 런타임 흐름
 
 ```txt
@@ -276,6 +310,52 @@ VibeSmith는 짧은 바이브 입력에서 9섹션 동적 페르소나 카드를
 
 *   **원본 불변 원칙**: 생성 시 만들어진 MD 페르소나 문서(Fixed Canon 등)는 불변이다. 모든 변화는 dynamic_states 테이블에만 기록된다.
 *   **ZSTD 압축**: 동적 상태 JSON blob은 zstandard로 압축하여 저장한다. 평균 3~5x 압축률.
+
+### 5.4 Vibe Fill 연쇄 생성 파이프라인 (v1.1)
+
+VibeFill은 3단계 연쇄 생성 파이프라인으로 구성된다.
+각 단계의 출력이 다음 단계의 컨텍스트로 자동 주입되는 계층 구조이다.
+
+```txt
+[3단계 연쇄 생성 구조]
+
+Phase 1: 캐릭터 생성
+  입력: 바이브 텍스트
+  출력: 9섹션 동적 페르소나 카드 (PersonaCard)
+  API:  POST /personas/vibe-fill
+
+Phase 2: 로어북 생성
+  입력: 캐릭터(복수 선택) + 바이브 텍스트
+  출력: LoreEntry 배열 (title + activation_keys + content)
+  API:  POST /lorebooks/{id}/vibe-fill
+  특징:
+  - 선택된 캐릭터의 시트를 컨텍스트로 주입
+  - 기존 엔트리 제목/키워드를 주입하여 중복 방지
+  - max_output_tokens=4096, 최대 10개 엔트리
+
+Phase 3: 세계관(월드북) 생성
+  입력: 캐릭터(복수) + 로어북(복수) + 카테고리(10개 중 선택) + 바이브
+  출력: WorldEntry 배열 (title + content)
+  API:  POST /worldbooks/{id}/vibe-fill
+  특징:
+  - 선택된 캐릭터 시트 + 로어북 요약을 컨텍스트로 주입
+  - 카테고리를 2~3개씩 청크로 나눠 다중 LLM 호출
+  - 이전 청크의 생성 제목을 다음 청크에 주입 (연쇄 컨텍스트)
+
+[의존 관계]
+  바이브 → 캐릭터 → 로어북 → 세계관
+  (각 단계는 독립 실행 가능하나, 이전 단계 출력을 참조하면 일관성 향상)
+```
+
+### 5.5 엔티티 수동 편집 (v1.1)
+
+AI가 생성한 캐릭터, 로어 엔트리, 월드 엔트리는 모두 수동 편집이 가능하다.
+
+| 엔티티 | API | 편집 UI |
+|---|---|---|
+| PersonaCard | `PUT /personas/{id}` | 9섹션 접이식 편집 + JSON 원문 편집 토글 |
+| LoreEntry | `PUT /lore-entries/{id}` | 제목, 키워드, 내용, 우선순위, 활성 상태 |
+| WorldEntry | `PUT /world-entries/{id}` | 제목, 내용, 우선순위, 활성 상태 |
 
 ---
 

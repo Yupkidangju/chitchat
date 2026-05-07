@@ -255,6 +255,11 @@ class LoreEntryRepository(BaseRepository):
             )
             return list(session.execute(stmt).scalars().all())
 
+    def get_by_id(self, id_: str) -> LoreEntryRow | None:
+        """ID로 로어 엔트리를 조회한다."""
+        with self._get_session() as session:
+            return session.get(LoreEntryRow, id_)
+
     def upsert(self, row: LoreEntryRow) -> LoreEntryRow:
         with self._get_session() as session:
             merged = session.merge(row)
@@ -313,6 +318,11 @@ class WorldEntryRepository(BaseRepository):
                 .order_by(WorldEntryRow.priority.desc(), WorldEntryRow.title)
             )
             return list(session.execute(stmt).scalars().all())
+
+    def get_by_id(self, id_: str) -> WorldEntryRow | None:
+        """ID로 월드 엔트리를 조회한다."""
+        with self._get_session() as session:
+            return session.get(WorldEntryRow, id_)
 
     def upsert(self, row: WorldEntryRow) -> WorldEntryRow:
         with self._get_session() as session:

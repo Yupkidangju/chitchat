@@ -3,14 +3,14 @@
 //
 // 백엔드 REST API와 WebSocket 통신을 위한 공통 함수를 제공한다.
 
-const API_BASE = '/api';
+export const API_BASE = '/api';
 
 /**
  * GET 요청을 보낸다.
  * @param {string} path - API 경로 (예: '/providers')
  * @returns {Promise<any>} JSON 응답
  */
-async function apiGet(path) {
+export async function apiGet(path) {
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -25,7 +25,7 @@ async function apiGet(path) {
  * @param {object} body - 요청 본문
  * @returns {Promise<any>} JSON 응답
  */
-async function apiPost(path, body) {
+export async function apiPost(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,7 +41,7 @@ async function apiPost(path, body) {
 /**
  * PUT 요청을 보낸다.
  */
-async function apiPut(path, body) {
+export async function apiPut(path, body) {
   const res = await fetch(`${API_BASE}${path}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,7 @@ async function apiPut(path, body) {
 /**
  * DELETE 요청을 보낸다.
  */
-async function apiDelete(path) {
+export async function apiDelete(path) {
   const res = await fetch(`${API_BASE}${path}`, { method: 'DELETE' });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
@@ -72,7 +72,7 @@ async function apiDelete(path) {
  * @param {string} str
  * @returns {string}
  */
-function escapeHtml(str) {
+export function escapeHtml(str) {
   const el = document.createElement('span');
   el.textContent = str;
   return el.innerHTML;
@@ -86,7 +86,7 @@ function escapeHtml(str) {
  * @param {'success'|'error'|'info'|'warning'} type - 알림 타입 (기본: info)
  * @param {number} duration - 표시 시간(ms, 기본: 3000)
  */
-function showToast(message, type = 'info', duration = 3000) {
+export function showToast(message, type = 'info', duration = 3000) {
   // 컨테이너가 없으면 생성
   let container = document.getElementById('toast-container');
   if (!container) {

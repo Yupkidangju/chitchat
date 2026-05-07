@@ -81,11 +81,13 @@ class BaseRepository(Generic[T]):
 - 라우터는 Provider/Repository를 직접 import하지 않는다 (Service를 통해서만 접근).
 - WebSocket 엔드포인트는 ChatService.start_stream()을 호출하여 실시간 스트리밍을 수행한다.
 
-### 3.4 Frontend → API 경계 (v1.0.0)
+### 3.4 Frontend → API 경계 (v1.1.1)
 
 - 프론트엔드는 `api.js` 유틸리티를 통해 REST API와 WebSocket을 사용한다.
-- 페이지별 JS 모듈(`pages/*.js`)이 SPA 라우팅을 처리한다.
+- `app.js` 단일 진입점에서 모든 페이지 모듈을 `import`하고, SPA 라우팅을 처리한다.
 - 모든 API 호출은 `fetch()` 기반이며, 스트리밍은 WebSocket을 사용한다.
+- **이벤트 바인딩**: 인라인 `onclick` 금지. `data-action` + `addEventListener` 이벤트 위임 필수.
+- **상태 관리**: `store.js` StateStore 싱글톤 — `getState()`/`setState()`/`subscribe()` API로만 상태 관리.
 
 ---
 
@@ -97,6 +99,7 @@ class BaseRepository(Generic[T]):
 |---|---|
 | `paths.py` | OS별 app data 디렉토리 결정, `ensure_app_dirs()` |
 | `settings.py` | `AppSettings(BaseSettings)`: DB 경로, 로그 레벨, 기본 타임아웃 |
+| `user_preferences.py` | `UserPreferences`: 테마, 폰트 크기, 스트리밍 설정, 기본 Provider ID, JSON 파일 영속화 |
 
 ### 4.2 db/
 
@@ -147,13 +150,27 @@ class BaseRepository(Generic[T]):
 | `chat_service.py` | ChatSession CRUD, 상태 전이, 스트리밍 실행/취소, 메시지 저장 |
 | `vibe_fill_service.py` | Vibe Fill (AI Persona, Lorebook, Worldbook) 연쇄 생성, 청크 분할 LLM 호출 및 진행률 콜백 관리 |
 
-### 4.7 ui/
+### 4.7 frontend/ (v1.0.0 이후 — PySide6 ui/ 대체)
 
 | 파일 | 책임 |
 |---|---|
-| `main_window.py` | QMainWindow, 상태바, QStackedWidget, 글로벌 토스트 |
-| `navigation.py` | 사이드바 위젯, 페이지 전환 Signal |
-| `theme.py` | 디자인 토큰 딕셔너리, 글로벌 Qt 스타일시트 생성 |
+| `index.html` | SPA 루트 HTML, 사이드바 + 메인 컨테이너 레이아웃 |
+| `index.css` | Neo-Brutal 디자인 토큰, CSS 변수 기반 테마 |
+| `js/app.js` | 단일 진입점, SPA 라우터, `navigateTo()` |
+| `js/api.js` | REST API 유틸리티 (`apiGet`, `apiPost`, `apiPut`, `apiDelete`), `showToast()`, `escapeHtml()` |
+| `js/store.js` | StateStore 싱글톤 — Pub-Sub 패턴 중앙 상태 관리 |
+| `js/pages/chat.js` | 채팅 오케스트레이터 (레이아웃 + 이벤트 바인딩) |
+| `js/pages/chat_session.js` | 세션 CRUD, 세션 생성 모달 |
+| `js/pages/chat_composer.js` | WebSocket 스트리밍, 메시지 전송/수신, Inspector |
+| `js/pages/chat_utils.js` | 공용 유틸리티 (`renderMessageBubble`) — 순환 import 방지 |
+| `js/pages/providers.js` | Provider CRUD + 연결 테스트 |
+| `js/pages/models.js` | ModelProfile CRUD |
+| `js/pages/personas.js` | VibeFill AI 생성 + 9섹션 편집 |
+| `js/pages/lorebooks.js` | Lorebook + LoreEntry CRUD + AI Vibe Fill |
+| `js/pages/worldbooks.js` | Worldbook + WorldEntry CRUD + AI Vibe Fill |
+| `js/pages/chat_profiles.js` | ChatProfile 다중 선택 조합 |
+| `js/pages/prompt_order.js` | 프롬프트 블록 순서 편집 |
+| `js/pages/settings.js` | 4섹션 설정 (언어, 표시, 일반, 데이터 관리) |
 
 ### 4.8 tests/
 
@@ -314,27 +331,33 @@ v0.3.0 i18n + 설정 시스템                       ✅ 완료 (357키 × 5개 
 | 라우트 파일 | 대상 엔티티 | 엔드포인트 수 | 상태 |
 |---|---|:---:|:---:|
 | `api/routes/providers.py` | ProviderProfile | 6 | ✅ |
-| `api/routes/personas.py` | AIPersona (VibeFill) | 4 | ✅ |
+| `api/routes/personas.py` | AIPersona (VibeFill + PUT) | 5 | ✅ |
 | `api/routes/profiles.py` | ModelProfile | 4 | ✅ |
 | `api/routes/profiles.py` | ChatProfile | 4 | ✅ |
-| `api/routes/profiles.py` | Lorebook + LoreEntry | 5 | ✅ |
-| `api/routes/profiles.py` | Worldbook + WorldEntry | 5 | ✅ |
+| `api/routes/profiles.py` | Lorebook + LoreEntry + VibeFill | 7 | ✅ |
+| `api/routes/profiles.py` | Worldbook + WorldEntry + VibeFill | 7 | ✅ |
 | `api/routes/profiles.py` | UserPersona | 3 | ✅ |
 | `api/routes/chat.py` | ChatSession + WebSocket + Inspector | 6 | ✅ |
 | `api/routes/settings.py` | UserPreferences | 3 | ✅ |
 | `api/routes/health.py` | Health | 1 | ✅ |
 
-### 10.2 프론트엔드 페이지 현황
+### 10.2 프론트엔드 페이지 현황 (v1.1.1)
 
-| 페이지 | 파일 | 주요 기능 | 상태 |
+| 페이지/모듈 | 파일 | 주요 기능 | 상태 |
 |---|---|---|:---:|
-| 채팅 | `chat.js` | 3컬럼, WebSocket, 동적 상태, 프롬프트 Inspector, 세션 생성 모달 | ✅ |
-| 공급자 | `providers.js` | CRUD, 연결 테스트, 모델 캐시 | ✅ |
-| 모델 설정 | `models.js` | ModelProfile CRUD, Provider 연동 모델 선택 | ✅ |
-| 페르소나 | `personas.js` | VibeFill AI 생성, 9섹션 편집 | ✅ |
-| 로어북 | `lorebooks.js` | CRUD + LoreEntry 관리 | ✅ |
-| 월드북 | `worldbooks.js` | CRUD + WorldEntry 관리 | ✅ |
-| 채팅 프로필 | `chat_profiles.js` | 다중 선택 조합 | ✅ |
-| 프롬프트 순서 | `prompt_order.js` | 블록 순서 편집 | ✅ |
+| 채팅 오케스트레이터 | `chat.js` | 3컬럼 레이아웃, 이벤트 바인딩, 하위 모듈 위임 | ✅ |
+| 채팅 세션 | `chat_session.js` | 세션 CRUD, 세션 생성 모달 | ✅ |
+| 채팅 컴포저 | `chat_composer.js` | WebSocket 스트리밍, 메시지 전송, 프롬프트 Inspector | ✅ |
+| 채팅 유틸 | `chat_utils.js` | `renderMessageBubble` — 순환 import 방지용 분리 모듈 | ✅ |
+| 공급자 | `providers.js` | CRUD, 연결 테스트, 모델 캐시, 이벤트 위임 | ✅ |
+| 모델 설정 | `models.js` | ModelProfile CRUD, Provider 연동 모델 선택, 이벤트 위임 | ✅ |
+| 페르소나 | `personas.js` | VibeFill AI 생성 + 9섹션 접이식 편집 + JSON 토글, 이벤트 위임 | ✅ |
+| 로어북 | `lorebooks.js` | CRUD + LoreEntry 관리 + AI Vibe Fill + 이벤트 위임 | ✅ |
+| 월드북 | `worldbooks.js` | CRUD + WorldEntry 관리 + AI Vibe Fill + 이벤트 위임 | ✅ |
+| 채팅 프로필 | `chat_profiles.js` | 다중 선택 조합, 이벤트 위임 | ✅ |
+| 프롬프트 순서 | `prompt_order.js` | 블록 순서 편집, 이벤트 위임 | ✅ |
 | 설정 | `settings.js` | 4섹션 (언어, 표시, 일반, 데이터 관리), 설정 초기화 | ✅ |
+| 상태 관리 | `store.js` | StateStore 싱글톤 — Pub-Sub 패턴 (`getState`/`setState`/`subscribe`) | ✅ |
+| API 유틸 | `api.js` | REST 래퍼, `showToast()`, `escapeHtml()` | ✅ |
+| 앱 진입점 | `app.js` | SPA 라우터, 모듈 import, `navigateTo()` | ✅ |
 

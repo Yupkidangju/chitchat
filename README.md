@@ -4,7 +4,7 @@
 
 ### 소개
 
-`chitchat`은 Provider, 모델, 모델 파라미터, 사용자 페르소나, AI 페르소나, 로어북, 세계관, 프롬프트 조합 순서를 저장하고 조합해 대화 세션을 실행하는 Python 크로스플랫폼 데스크톱 AI 채팅 앱입니다.
+`chitchat`은 Provider, 모델, 모델 파라미터, 사용자 페르소나, AI 페르소나, 로어북, 세계관, 프롬프트 조합 순서를 저장하고 조합해 대화 세션을 실행하는 Python 크로스플랫폼 로컬 AI 채팅 앱입니다. FastAPI 백엔드와 브라우저 SPA 프론트엔드로 구성됩니다.
 
 ### 주요 기능
 
@@ -15,24 +15,24 @@
 - **프롬프트 Inspector**: 실제 요청 직전 조합된 프롬프트와 로어북 매칭 결과를 실시간 검증
 - **스트리밍 채팅**: 실시간 스트리밍 응답과 Stop 취소 지원
 - **안전한 키 저장**: OS 키링을 사용하여 API Key를 안전하게 보호
+- **ES6 모듈 아키텍처 (v1.1.1)**: 이벤트 위임 기반 프론트엔드, StateStore 중앙 상태 관리
 
 ### 기술 스택
 
-- Python 3.13 | PySide6 | SQLAlchemy + SQLite | Pydantic v2 | httpx | keyring
+- Python 3.13 | FastAPI + uvicorn | SQLAlchemy + SQLite | Pydantic v2 | httpx | keyring
 
 ### 설치 및 실행
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
 자세한 설치 가이드는 [BUILD_GUIDE.md](BUILD_GUIDE.md)를 참고하세요.
 
-> 💡 **v0.2.0 업데이트 안내**: v0.2.0부터는 앱 시작 시 데이터베이스 스키마 자동 마이그레이션을 지원합니다.
+> 💡 **v1.0.0 안내**: v1.0.0부터 PySide6 → FastAPI + 브라우저 SPA로 전환되었습니다. 앱 시작 시 `http://localhost:8000`에서 접속합니다.
 
 ---
 
@@ -40,7 +40,7 @@ python -m chitchat.main
 
 ### Introduction
 
-`chitchat` is a Python cross-platform desktop AI chat application that stores and combines Providers, models, model parameters, user personas, AI personas, lorebooks, worldbooks, and prompt assembly orders to run conversation sessions.
+`chitchat` is a Python cross-platform local AI chat application that stores and combines Providers, models, model parameters, user personas, AI personas, lorebooks, worldbooks, and prompt assembly orders to run conversation sessions. It consists of a FastAPI backend and a browser-based SPA frontend.
 
 ### Key Features
 
@@ -51,24 +51,24 @@ python -m chitchat.main
 - **Prompt Inspector**: Verify assembled prompts and lorebook matching results before each request
 - **Streaming Chat**: Real-time streaming responses with Stop cancellation support
 - **Secure Key Storage**: Protect API keys using the OS keyring
+- **ES6 Module Architecture (v1.1.1)**: Event delegation-based frontend, centralized StateStore management
 
 ### Tech Stack
 
-- Python 3.13 | PySide6 | SQLAlchemy + SQLite | Pydantic v2 | httpx | keyring
+- Python 3.13 | FastAPI + uvicorn | SQLAlchemy + SQLite | Pydantic v2 | httpx | keyring
 
 ### Installation & Running
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
 See [BUILD_GUIDE.md](BUILD_GUIDE.md) for the full installation guide.
 
-> 💡 **v0.2.0 Update Notice**: Starting from v0.2.0, the app supports automatic database schema migration upon startup.
+> 💡 **v1.0.0 Notice**: Starting from v1.0.0, the app has migrated from PySide6 to FastAPI + browser SPA. Access via `http://localhost:8000` after startup.
 
 ---
 
@@ -76,7 +76,7 @@ See [BUILD_GUIDE.md](BUILD_GUIDE.md) for the full installation guide.
 
 ### はじめに
 
-`chitchat`は、Provider、モデル、モデルパラメータ、ユーザーペルソナ、AIペルソナ、ロアブック、ワールドブック、プロンプト組み立て順序を保存・組み合わせて会話セッションを実行するPythonクロスプラットフォームデスクトップAIチャットアプリです。
+`chitchat`は、Provider、モデル、モデルパラメータ、ユーザーペルソナ、AIペルソナ、ロアブック、ワールドブック、プロンプト組み立て順序を保存・組み合わせて会話セッションを実行するPythonクロスプラットフォームローカルAIチャットアプリです。FastAPIバックエンドとブラウザSPAフロントエンドで構成されています。
 
 ### 主な機能
 
@@ -86,18 +86,18 @@ See [BUILD_GUIDE.md](BUILD_GUIDE.md) for the full installation guide.
 - **プロンプトInspector**: リクエスト直前に組み立てられたプロンプトとロアブックマッチング結果をリアルタイム検証
 - **ストリーミングチャット**: リアルタイムストリーミング応答とStopキャンセル対応
 - **安全なキー保管**: OSキーリングを使用してAPIキーを安全に保護
+- **ES6モジュールアーキテクチャ (v1.1.1)**: イベント委任ベースのフロントエンド、StateStore中央状態管理
 
 ### インストールと実行
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> 💡 **v0.2.0 アップデートのお知らせ**: v0.2.0から、アプリ起動時のデータベーススキーマの自動マイグレーションをサポートします。
+> 💡 **v1.0.0 お知らせ**: v1.0.0からPySide6 → FastAPI + ブラウザSPAに移行しました。起動後、`http://localhost:8000`でアクセスしてください。
 
 ---
 
@@ -105,7 +105,7 @@ python -m chitchat.main
 
 ### 簡介
 
-`chitchat` 是一款 Python 跨平台桌面 AI 聊天應用程式，可儲存並組合 Provider、模型、模型參數、使用者角色、AI 角色、知識庫、世界觀和提示詞組裝順序來執行對話工作階段。
+`chitchat` 是一款 Python 跨平台本地 AI 聊天應用程式，可儲存並組合 Provider、模型、模型參數、使用者角色、AI 角色、知識庫、世界觀和提示詞組裝順序來執行對話工作階段。由 FastAPI 後端和瀏覽器 SPA 前端組成。
 
 ### 主要功能
 
@@ -115,18 +115,18 @@ python -m chitchat.main
 - **提示詞檢查器**: 在每次請求前驗證組裝的提示詞和知識庫匹配結果
 - **串流聊天**: 即時串流回應，支援停止取消
 - **安全金鑰儲存**: 使用 OS 金鑰鏈保護 API 金鑰
+- **ES6 模組架構 (v1.1.1)**: 事件委派式前端，StateStore 集中狀態管理
 
 ### 安裝與執行
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
 pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> 💡 **v0.2.0 更新公告**: 從 v0.2.0 開始，應用程式啟動時支援資料庫架構的自動遷移。
+> 💡 **v1.0.0 更新公告**: 從 v1.0.0 開始，應用程式已從 PySide6 遷移至 FastAPI + 瀏覽器 SPA。啟動後透過 `http://localhost:8000` 存取。
 
 ---
 
@@ -134,7 +134,7 @@ python -m chitchat.main
 
 ### 简介
 
-`chitchat` 是一款 Python 跨平台桌面 AI 聊天应用程序，可存储并组合 Provider、模型、模型参数、用户角色、AI 角色、知识库、世界观和提示词组装顺序来执行对话会话。
+`chitchat` 是一款 Python 跨平台本地 AI 聊天应用程序，可存储并组合 Provider、模型、模型参数、用户角色、AI 角色、知识库、世界观和提示词组装顺序来执行对话会话。由 FastAPI 后端和浏览器 SPA 前端组成。
 
 ### 主要功能
 
@@ -144,6 +144,7 @@ python -m chitchat.main
 - **提示词检查器**: 在每次请求前验证组装的提示词和知识库匹配结果
 - **流式聊天**: 实时流式响应，支持停止取消
 - **安全密钥存储**: 使用 OS 密钥链保护 API 密钥
+- **ES6 模块架构 (v1.1.1)**: 事件委托式前端，StateStore 集中状态管理
 
 ### 安装与运行
 
@@ -154,7 +155,7 @@ pip install -e ".[dev]"
 python -m chitchat.main
 ```
 
-> 💡 **v0.2.0 更新公告**: 从 v0.2.0 开始，应用程序启动时支持数据库架构的自动迁移。
+> 💡 **v1.0.0 更新公告**: 从 v1.0.0 开始，应用程序已从 PySide6 迁移至 FastAPI + 浏览器 SPA。启动后通过 `http://localhost:8000` 访问。
 
 ---
 

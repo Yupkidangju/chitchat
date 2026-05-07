@@ -5,6 +5,8 @@
 # - engine 대신 db_path를 받아서 SQLite 잠금 데드락을 원천 방지
 # - inspect를 sqlite3 stdlib으로 대체하여 SQLAlchemy pool과 독립
 #
+# [v1.1.1] PyInstaller frozen 환경에서 alembic.ini 경로를 _MEIPASS 기준으로 탐색
+#
 # 앱 시작 시 자동으로 Alembic 마이그레이션을 적용한다.
 
 from __future__ import annotations
@@ -12,6 +14,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import sys
 from pathlib import Path
 
 from alembic import command
@@ -19,10 +22,19 @@ from alembic.config import Config
 
 logger = logging.getLogger(__name__)
 
-# 프로젝트 루트의 alembic 디렉토리 경로
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_ALEMBIC_INI = _PROJECT_ROOT / "alembic.ini"
-_ALEMBIC_DIR = _PROJECT_ROOT / "alembic"
+# [v1.1.1] PyInstaller frozen 환경 vs 개발 환경 분기
+# frozen: sys._MEIPASS/_internal/ 아래에 alembic.ini와 alembic/ 존재
+# 개발: 프로젝트 루트(src/chitchat/db/migrations.py → 4단계 상위)
+if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+    # PyInstaller 번들 환경 — _MEIPASS 기준
+    _BUNDLE_ROOT = Path(sys._MEIPASS)
+    _ALEMBIC_INI = _BUNDLE_ROOT / "alembic.ini"
+    _ALEMBIC_DIR = _BUNDLE_ROOT / "alembic"
+else:
+    # 개발 환경 — 프로젝트 루트 기준
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+    _ALEMBIC_INI = _PROJECT_ROOT / "alembic.ini"
+    _ALEMBIC_DIR = _PROJECT_ROOT / "alembic"
 
 # v0.2.0에서 ai_personas에 추가된 확장 필드 목록 (stamp 판별용)
 _V020_COLUMNS = {"age", "gender", "appearance", "backstory",

@@ -5,10 +5,18 @@
 // 프롬프트 Inspector 렌더링을 담당한다.
 // chat_session.js의 selectSession()에서 connectWebSocket()을 호출한다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
+import { getState, setState } from '../store.js';
+
+import { renderMessageBubble } from './chat_utils.js';
+
 // WebSocket 인스턴스 — 모듈 스코프
+// [v1.1.1] 스트리밍 상태 추적 — SC-09 Stop 버튼 제어
+// [v1.0.0] 블록 종류별 색상 매핑 — 토큰 예산 바 세그먼트에 사용
+// [v1.1.1] WebSocket 인스턴스 — 모듈 스코프 (전역 아님)
 let chatWebSocket = null;
 
-// [v1.0.0] 블록 종류별 색상 매핑 — 토큰 예산 바 세그먼트에 사용
 const BLOCK_COLORS = {
   system_base: '#6366f1',
   ai_persona: '#f472b6',
@@ -23,7 +31,7 @@ const BLOCK_COLORS = {
  * WebSocket으로 채팅 서버에 연결한다.
  * 기존 연결이 있으면 닫고 새로 연결한다.
  */
-function connectWebSocket(sessionId) {
+export function connectWebSocket(sessionId) {
   if (chatWebSocket) {
     chatWebSocket.close();
   }
@@ -65,6 +73,8 @@ function connectWebSocket(sessionId) {
       }
       // 동적 상태 갱신
       refreshDynamicState();
+      // [v1.1.1] 스트리밍 종료 — 버튼 복원
+      _restoreSendButton();
     } else if (data.type === 'error') {
       // 스트리밍 에러 — 에러 메시지 표시
       const streamingMsg = messagesEl.querySelector('.message-streaming');
@@ -79,6 +89,8 @@ function connectWebSocket(sessionId) {
         messagesEl.appendChild(errMsg);
       }
       messagesEl.scrollTop = messagesEl.scrollHeight;
+      // [v1.1.1] 스트리밍 에러 시에도 버튼 복원
+      _restoreSendButton();
     }
   };
 
@@ -91,7 +103,7 @@ function connectWebSocket(sessionId) {
  * 메시지를 전송한다.
  * WebSocket이 열려있지 않으면 무시한다.
  */
-function sendMessage() {
+export function sendMessage() {
   const input = document.getElementById('chat-input');
   const text = input.value.trim();
   if (!text || !chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) return;
@@ -110,13 +122,44 @@ function sendMessage() {
   // WebSocket으로 전송
   chatWebSocket.send(text);
   input.value = '';
+
+  // [v1.1.1] 스트리밍 상태 — 버튼을 '⏹ 중지'로 변경
+  setState('isStreaming', true);
+  const sendBtn = document.getElementById('btn-send');
+  if (sendBtn) {
+    sendBtn.textContent = '⏹ 중지';
+    sendBtn.classList.add('btn-stop');
+  }
+}
+
+/**
+ * [v1.1.1] 스트리밍 중지를 요청한다.
+ * WebSocket으로 {type: "cancel"} 메시지를 전송하여 서버의 Task를 취소한다.
+ */
+export function stopStreaming() {
+  if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) return;
+  chatWebSocket.send(JSON.stringify({ type: 'cancel' }));
+  _restoreSendButton();
+}
+
+/**
+ * [v1.1.1] 전송 버튼을 원래 상태로 복원한다.
+ */
+function _restoreSendButton() {
+  setState('isStreaming', false);
+  const sendBtn = document.getElementById('btn-send');
+  if (sendBtn) {
+    sendBtn.textContent = '전송';
+    sendBtn.classList.remove('btn-stop');
+  }
 }
 
 /**
  * 현재 세션의 동적 상태를 새로고침한다.
- * 전역 currentSessionId를 참조한다.
+ * store의 currentSessionId를 참조한다.
  */
-async function refreshDynamicState() {
+export async function refreshDynamicState() {
+  const currentSessionId = getState('currentSessionId');
   if (!currentSessionId) return;
   const body = document.getElementById('tab-state');
   if (!body) return;
@@ -171,8 +214,9 @@ async function refreshDynamicState() {
     }
 
     body.innerHTML = html;
-  } catch {
-    body.innerHTML = '<p class="text-secondary">동적 상태 로드 실패</p>';
+  } catch (err) {
+    showToast('동적 상태 로드 실패', 'error', 3000);
+    body.innerHTML = '<p class="text-secondary">동적 상태를 불러올 수 없습니다</p>';
   }
 }
 
@@ -180,7 +224,7 @@ async function refreshDynamicState() {
  * [v1.0.0] 프롬프트 스냅샷을 Inspector 탭에 표시한다.
  * designs.md §9.9 프롬프트 Inspector 규격 준수.
  */
-async function showPromptSnapshot(messageId) {
+export async function showPromptSnapshot(messageId) {
   // Inspector 탭으로 전환
   document.querySelectorAll('.panel-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.panel-tab-body').forEach(b => b.classList.remove('active'));
@@ -311,3 +355,4 @@ function renderInspectorContent(snapshot) {
 
   return html;
 }
+

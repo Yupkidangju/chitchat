@@ -4,6 +4,8 @@
 // ChatProfile의 prompt_order_json을 시각적으로 편집한다.
 // 기본 프롬프트 블록 순서를 위/아래 버튼으로 조정할 수 있다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
 // 기본 프롬프트 블록 목록
 const DEFAULT_PROMPT_BLOCKS = [
   { key: 'system_base', label: '시스템 베이스', icon: '⚙️' },
@@ -19,7 +21,7 @@ const DEFAULT_PROMPT_BLOCKS = [
 /**
  * 프롬프트 순서 페이지를 렌더링한다.
  */
-async function renderPromptOrder(container) {
+export async function renderPromptOrder(container) {
   container.innerHTML = `
     <div class="card">
       <h2 class="card-title">📝 프롬프트 순서</h2>
@@ -59,6 +61,17 @@ async function renderPromptOrder(container) {
       return;
     }
     await loadPromptOrder(profileId);
+  });
+
+  // [v1.1.1] 이벤트 위임 — data-action 기반 핸들러
+  container.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    e.stopPropagation();
+    const actionId = el.dataset.id;
+    switch (el.dataset.action) {
+      case 'moveBlock': moveBlock(parseInt(el.dataset.index), parseInt(el.dataset.dir)); break;
+    }
   });
 }
 
@@ -103,7 +116,8 @@ async function loadPromptOrder(profileId) {
     saveBtn.replaceWith(saveBtn.cloneNode(true));
     document.getElementById('btn-save-order').addEventListener('click', savePromptOrder);
   } catch (err) {
-    blocksEl.innerHTML = `<p style="color: var(--danger);">로드 실패: ${err.message}</p>`;
+    showToast(`로드 실패: ${err.message}`, 'error', 5000);
+    blocksEl.innerHTML = '<p class="session-empty">데이터를 불러올 수 없습니다</p>';
   }
 }
 
@@ -116,8 +130,8 @@ function renderBlocks() {
       <span class="block-label">${block.label}</span>
       <span class="block-key text-secondary">(${block.key})</span>
       <div class="block-controls">
-        <button class="btn btn-sm" onclick="moveBlock(${i}, -1)" ${i === 0 ? 'disabled' : ''}>▲</button>
-        <button class="btn btn-sm" onclick="moveBlock(${i}, 1)" ${i === currentBlockOrder.length - 1 ? 'disabled' : ''}>▼</button>
+        <button class="btn btn-sm" data-action="moveBlock" data-index="${i}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
+        <button class="btn btn-sm" data-action="moveBlock" data-index="${i}" data-dir="1" ${i === currentBlockOrder.length - 1 ? 'disabled' : ''}>▼</button>
       </div>
     </div>
   `).join('');

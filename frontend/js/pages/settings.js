@@ -4,11 +4,13 @@
 // 언어 설정, 표시 설정 (테마, 폰트 크기), 일반 설정 (스트리밍, 기본 Provider),
 // 데이터 관리 (앱 경로 표시, 설정 초기화) 섹션으로 구성된다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
 /**
  * 설정 페이지를 렌더링한다.
  * @param {HTMLElement} container
  */
-async function renderSettings(container) {
+export async function renderSettings(container) {
   container.innerHTML = `
     <div class="card">
       <h2 class="card-title">⚡ 설정</h2>
@@ -27,8 +29,9 @@ async function renderSettings(container) {
       apiGet('/providers'),
     ]);
   } catch (err) {
+    showToast(`설정 로드 실패: ${err.message}`, 'error', 5000);
     document.getElementById('settings-content').innerHTML =
-      `<p style="color: var(--danger);">설정 로드 실패: ${err.message}</p>`;
+      '<p class="session-empty">설정을 불러올 수 없습니다</p>';
     return;
   }
 
@@ -172,7 +175,7 @@ async function renderSettings(container) {
  * [v1.0.0] 폰트 크기를 즉시 적용한다.
  * CSS 변수 --font-size-base를 동적으로 변경한다.
  */
-function applyFontSize(size) {
+export function applyFontSize(size) {
   const sizeMap = { small: '13px', medium: '14px', large: '16px' };
   document.documentElement.style.setProperty('--font-size-base', sizeMap[size] || '14px');
 }
@@ -181,7 +184,7 @@ function applyFontSize(size) {
  * [v1.0.0] 테마를 즉시 적용한다.
  * document.documentElement의 data-theme 속성을 변경하여 CSS 변수를 전환한다.
  */
-function applyTheme(theme) {
+export function applyTheme(theme) {
   if (theme === 'light') {
     document.documentElement.setAttribute('data-theme', 'light');
   } else {

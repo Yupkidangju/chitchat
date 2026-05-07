@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+import typing
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
@@ -16,14 +17,46 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from chitchat.config.user_preferences import UserPreferences
+from chitchat.config.settings import AppSettings
+from chitchat.config.paths import ensure_app_dirs
 from chitchat.db.engine import create_db_engine, create_session_factory
 from chitchat.db.migrations import run_migrations
 from chitchat.i18n.translator import Translator
 
 logger = logging.getLogger(__name__)
 
-# 앱 데이터 디렉토리 (DB, 설정 파일 저장)
-APP_DATA_DIR = Path.home() / ".chitchat"
+# [v1.1.1] 앱 데이터 디렉토리 — AppSettings에서 OS별 경로를 가져온다.
+# spec.md §3.3: Linux → ${XDG_DATA_HOME}/chitchat/, Windows → %APPDATA%/chitchat/
+_settings = AppSettings()
+APP_DATA_DIR = _settings.app_data_dir
+
+# [v1.1.1] 기존 경로 호환 — ~/.chitchat에서 마이그레이션
+_LEGACY_DATA_DIR = Path.home() / ".chitchat"
+
+
+def _migrate_legacy_data(new_dir: Path) -> None:
+    """기존 ~/.chitchat/chitchat.db가 존재하면 새 경로로 복사한다.
+
+    [v1.1.1] 경로 전환 시 데이터 유실을 방지한다.
+    기존 파일명(chitchat.db)을 새 파일명(chitchat.sqlite3)으로 매핑한다.
+    새 경로에 이미 DB가 존재하면 마이그레이션을 건너뛴다.
+    """
+    import shutil
+    legacy_db = _LEGACY_DATA_DIR / "chitchat.db"
+    new_db = _settings.db_path  # chitchat.sqlite3
+
+    if legacy_db.exists() and not new_db.exists():
+        new_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(legacy_db, new_db)
+        logger.info(
+            "기존 DB 마이그레이션 완료: %s → %s",
+            legacy_db, new_db,
+        )
+        # 설정 파일도 복사
+        legacy_settings = _LEGACY_DATA_DIR / "settings.json"
+        new_settings = new_dir / "settings.json"
+        if legacy_settings.exists() and not new_settings.exists():
+            shutil.copy2(legacy_settings, new_settings)
 
 
 @asynccontextmanager
@@ -33,13 +66,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     시작 시 DB 엔진 생성, 마이그레이션, 서비스 레지스트리 초기화를 수행한다.
     종료 시 DB 커넥션을 정리한다.
     """
-    # [v1.0.0] 앱 데이터 디렉토리 보장
-    APP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # [v1.1.1] 앱 데이터 디렉토리 보장 + 기존 경로 마이그레이션
+    ensure_app_dirs(APP_DATA_DIR)
+    _migrate_legacy_data(APP_DATA_DIR)
 
     # DB 마이그레이션 후 엔진 생성
     # [v1.0.0] run_migrations는 SQLite 잠금 데드락 방지를 위해 db_path를 직접 받는다.
     # 마이그레이션 완료 후 engine과 session_factory를 생성한다.
-    db_path = APP_DATA_DIR / "chitchat.db"
+    db_path = _settings.db_path
     run_migrations(db_path)
     engine = create_db_engine(db_path)
     session_factory = create_session_factory(engine)
@@ -112,6 +146,27 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # [v1.1.1] 개발 환경에서 정적 파일 캐시 방지 미들웨어
+    # 브라우저가 오래된 JS/CSS를 캐시하여 변경이 반영되지 않는 문제를 방지한다.
+    import sys
+    if not getattr(sys, "frozen", False):
+        from starlette.middleware.base import BaseHTTPMiddleware
+        from starlette.requests import Request
+        from starlette.responses import Response
+
+        class NoCacheMiddleware(BaseHTTPMiddleware):
+            """정적 파일(JS/CSS)에 Cache-Control: no-store 헤더를 추가한다."""
+            async def dispatch(
+                self, request: Request, call_next: typing.Callable[..., typing.Awaitable[Response]]
+            ) -> Response:
+                response: Response = await call_next(request)
+                path = request.url.path
+                if path.endswith(('.js', '.css', '.html')):
+                    response.headers["Cache-Control"] = "no-store, must-revalidate"
+                return response
+
+        app.add_middleware(NoCacheMiddleware)
 
     # API 라우터 등록
     from chitchat.api.routes import (  # noqa: E402

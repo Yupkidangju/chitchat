@@ -1,14 +1,24 @@
 // frontend/js/app.js
-// [v1.0.0] SPA 라우터 및 초기화
+// [v1.1.1] ES6 모듈 기반 SPA 라우터 및 초기화
 //
-// 사이드바 네비게이션 클릭에 따라 페이지를 동적으로 로드한다.
-// 각 페이지 모듈의 render() 함수를 호출하여 #page-container에 렌더링한다.
+// 단일 진입점으로 모든 페이지 모듈을 import하고,
+// 사이드바 네비게이션에 따라 페이지를 동적으로 로드한다.
+// 전역 변수를 사용하지 않고 store.js를 통해 상태를 관리한다.
+
+import { apiGet } from './api.js';
+import { setState } from './store.js';
+import { renderChat } from './pages/chat.js';
+import { renderProviders } from './pages/providers.js';
+import { renderModels } from './pages/models.js';
+import { renderPersonas } from './pages/personas.js';
+import { renderLorebooks } from './pages/lorebooks.js';
+import { renderWorldbooks } from './pages/worldbooks.js';
+import { renderChatProfiles } from './pages/chat_profiles.js';
+import { renderPromptOrder } from './pages/prompt_order.js';
+import { renderSettings, applyFontSize, applyTheme } from './pages/settings.js';
 
 const pageContainer = document.getElementById('page-container');
 const navItems = document.querySelectorAll('.nav-item');
-
-// 현재 활성 페이지
-let currentPage = 'chat';
 
 /**
  * 페이지를 전환한다.
@@ -20,66 +30,34 @@ async function navigateTo(pageName) {
     item.classList.toggle('active', item.dataset.page === pageName);
   });
 
-  currentPage = pageName;
+  setState('currentPage', pageName);
 
   // 페이지별 렌더링 함수 호출
-  switch (pageName) {
-    case 'chat':
-      await renderChat(pageContainer);
-      break;
-    case 'providers':
-      await renderProviders(pageContainer);
-      break;
-    case 'models':
-      await renderModels(pageContainer);
-      break;
-    case 'personas':
-      await renderPersonas(pageContainer);
-      break;
-    case 'lorebooks':
-      await renderLorebooks(pageContainer);
-      break;
-    case 'worldbooks':
-      await renderWorldbooks(pageContainer);
-      break;
-    case 'chat-profiles':
-      await renderChatProfiles(pageContainer);
-      break;
-    case 'prompt-order':
-      await renderPromptOrder(pageContainer);
-      break;
-    case 'settings':
-      await renderSettings(pageContainer);
-      break;
-    default:
-      // 아직 구현되지 않은 페이지
-      pageContainer.innerHTML = `
-        <div class="card">
-          <h2 class="card-title">${getPageTitle(pageName)}</h2>
-          <p style="color: var(--text-secondary);">
-            이 페이지는 v1.0.0 후속 업데이트에서 구현될 예정입니다.
-          </p>
-        </div>
-      `;
-  }
-}
-
-/**
- * 페이지 이름으로 타이틀을 반환한다.
- */
-function getPageTitle(pageName) {
-  const titles = {
-    'chat': '💬 채팅',
-    'providers': '🔌 공급자 관리',
-    'models': '⚙️ 모델 설정',
-    'personas': '🤖 VibeSmith 페르소나',
-    'lorebooks': '📖 로어북',
-    'worldbooks': '🌍 월드북',
-    'chat-profiles': '🎯 채팅 프로필',
-    'prompt-order': '📝 프롬프트 순서',
-    'settings': '⚡ 설정',
+  const renderers = {
+    'chat': renderChat,
+    'providers': renderProviders,
+    'models': renderModels,
+    'personas': renderPersonas,
+    'lorebooks': renderLorebooks,
+    'worldbooks': renderWorldbooks,
+    'chat-profiles': renderChatProfiles,
+    'prompt-order': renderPromptOrder,
+    'settings': renderSettings,
   };
-  return titles[pageName] || pageName;
+
+  const render = renderers[pageName];
+  if (render) {
+    await render(pageContainer);
+  } else {
+    pageContainer.innerHTML = `
+      <div class="card">
+        <h2 class="card-title">${pageName}</h2>
+        <p style="color: var(--text-secondary);">
+          이 페이지는 후속 업데이트에서 구현될 예정입니다.
+        </p>
+      </div>
+    `;
+  }
 }
 
 // 네비게이션 이벤트 바인딩
@@ -109,7 +87,14 @@ async function init() {
   }
 
   // 기본 페이지 렌더링
-  navigateTo(currentPage);
+  try {
+    await navigateTo('chat');
+  } catch (err) {
+    console.error('초기 페이지 렌더링 실패:', err);
+    pageContainer.innerHTML = `<div class="card"><h2>⚠️ 초기화 오류</h2><pre style="color: var(--danger);">${err.stack || err.message}</pre></div>`;
+  }
 }
 
-init();
+init().catch(err => {
+  console.error('init() 전체 실패:', err);
+});

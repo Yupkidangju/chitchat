@@ -4,6 +4,7 @@
 # 런타임에서는 migrations.py가 이 파일을 호출하여 마이그레이션을 실행한다.
 
 from logging.config import fileConfig
+import os
 
 from sqlalchemy import engine_from_config, pool
 
@@ -14,7 +15,6 @@ config = context.config
 
 # 로깅 설정 — CLI에서 직접 실행할 때만 적용
 # 프로그래밍 방식(run_migrations)으로 호출하면 기존 로거가 파괴되므로 건너뛴다.
-import os
 if config.config_file_name is not None and not os.environ.get("CHITCHAT_PROGRAMMATIC_ALEMBIC"):
     fileConfig(config.config_file_name)
 

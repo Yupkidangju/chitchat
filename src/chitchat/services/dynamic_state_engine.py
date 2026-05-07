@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 import zstandard as zstd
 
@@ -320,7 +321,7 @@ class DynamicStateEngine:
 }}
 ```"""
 
-    def parse_analysis_response(self, response_text: str) -> dict | None:
+    def parse_analysis_response(self, response_text: str) -> dict[str, Any] | None:
         """AI 분석 응답에서 JSON을 파싱한다.
 
         [v1.0.0] 응답에서 JSON 블록을 추출하고 유효성을 검증한다.
@@ -339,7 +340,7 @@ class DynamicStateEngine:
             text = text[start:end].strip()
 
         try:
-            data = json.loads(text)
+            data: dict[str, Any] = json.loads(text)
         except json.JSONDecodeError:
             logger.warning("AI 분석 응답 JSON 파싱 실패")
             return None
@@ -360,7 +361,7 @@ class DynamicStateEngine:
     def apply_analysis(
         self,
         state: DynamicCharacterState,
-        analysis: dict,
+        analysis: dict[str, Any],
     ) -> None:
         """파싱된 AI 분석 결과를 동적 상태에 적용한다.
 

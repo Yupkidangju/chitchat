@@ -635,10 +635,18 @@ def build_world_prompt(
             parts.append(f"- {s}")
         parts.append("")
 
-    # 이전 청크 결과 (연쇄 컨텍스트)
+    # [v1.1.1] 이전 청크 결과 (연쇄 컨텍스트) — 방어 로직 적용
+    # 최대 30개로 클램핑하고, 특수문자를 제거하여 프롬프트 인젝션 방지
+    _MAX_PREV_TITLES = 30
     if prev_titles:
+        # 특수문자 제거 + 길이 클램핑 (제목당 50자)
+        import re
+        safe_titles = [
+            re.sub(r'[\\`{}\[\]<>|]', '', t)[:50]
+            for t in prev_titles[:_MAX_PREV_TITLES]
+        ]
         parts.append("[이전 생성 결과 — 아래와 일관성을 유지하세요]")
-        for t in prev_titles:
+        for t in safe_titles:
             parts.append(f'- "{t}"')
         parts.append("")
 

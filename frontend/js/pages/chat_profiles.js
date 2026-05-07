@@ -4,11 +4,13 @@
 // ModelProfile + AI Persona + Lorebook + Worldbook 조합으로 ChatProfile을 구성한다.
 // ChatProfile이 있어야 채팅 세션을 생성할 수 있다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
 /**
  * 채팅 프로필 페이지를 렌더링한다.
  * @param {HTMLElement} container - #page-container
  */
-async function renderChatProfiles(container) {
+export async function renderChatProfiles(container) {
   container.innerHTML = `
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -26,6 +28,22 @@ async function renderChatProfiles(container) {
 
   document.getElementById('btn-add-chat-profile').addEventListener('click', () => {
     showChatProfileForm();
+  });
+
+  // [v1.1.1] 이벤트 위임 — data-action 기반 핸들러
+  container.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    e.stopPropagation();
+    const actionId = el.dataset.id;
+    switch (el.dataset.action) {
+      case 'deleteChatProfile': deleteChatProfile(actionId); break;
+      case 'closeModal': {
+        const mid = el.dataset.modalId;
+        if (mid) { const modal = document.getElementById(mid); if (modal) modal.style.display = 'none'; }
+        break;
+      }
+    }
   });
 }
 
@@ -55,12 +73,13 @@ async function loadChatProfiles() {
           </span>
         </div>
         <div class="profile-actions">
-          <button class="btn btn-sm btn-danger" onclick="deleteChatProfile('${p.id}')">삭제</button>
+          <button class="btn btn-sm btn-danger" data-action="deleteChatProfile" data-id="${p.id}">삭제</button>
         </div>
       </div>
     `).join('');
   } catch (err) {
-    listEl.innerHTML = `<p style="color: var(--danger);">로드 실패: ${escapeHtml(err.message)}</p>`;
+    showToast(`로드 실패: ${err.message}`, 'error', 5000);
+    listEl.innerHTML = '<p class="session-empty">데이터를 불러올 수 없습니다</p>';
   }
 }
 
@@ -131,7 +150,7 @@ async function showChatProfileForm() {
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">생성</button>
-          <button type="button" class="btn" onclick="document.getElementById('cp-form-modal').style.display='none'">취소</button>
+          <button type="button" class="btn" data-action="closeModal" data-modal-id="cp-form-modal">취소</button>
         </div>
       </form>
     </div>
@@ -181,3 +200,5 @@ async function deleteChatProfile(id) {
     showToast(`삭제 실패: ${err.message}`, 'error', 5000);
   }
 }
+
+

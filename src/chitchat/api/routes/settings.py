@@ -12,9 +12,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Any
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
+
+from chitchat.api.dependencies import get_app_data_dir
 
 from chitchat.config.user_preferences import UserPreferences
 from chitchat.i18n.translator import Translator
@@ -62,19 +65,21 @@ def _build_response(prefs: UserPreferences, app_data_dir: Path) -> SettingsRespo
 
 
 @router.get("/settings")
-async def get_settings(request: Request) -> SettingsResponse:
+async def get_settings(
+    app_data_dir: Any = Depends(get_app_data_dir),
+) -> SettingsResponse:
     """현재 사용자 설정을 반환한다."""
     prefs = UserPreferences.instance()
-    return _build_response(prefs, request.app.state.app_data_dir)
+    return _build_response(prefs, app_data_dir)
 
 
 @router.put("/settings")
 async def update_settings(
-    body: SettingsUpdateRequest, request: Request,
+    body: SettingsUpdateRequest,
+    app_data_dir: Any = Depends(get_app_data_dir),
 ) -> SettingsResponse:
     """사용자 설정을 변경한다."""
     prefs = UserPreferences.instance()
-    app_data_dir = request.app.state.app_data_dir
 
     if body.ui_locale is not None:
         prefs.ui_locale = body.ui_locale
@@ -110,12 +115,13 @@ async def update_settings(
 
 
 @router.post("/settings/reset")
-async def reset_settings(request: Request) -> SettingsResponse:
+async def reset_settings(
+    app_data_dir: Any = Depends(get_app_data_dir),
+) -> SettingsResponse:
     """[v1.0.0] 모든 설정을 기본값으로 초기화한다.
 
     DD-12: 설정 초기화 기능.
     """
-    app_data_dir = request.app.state.app_data_dir
 
     # 싱글톤 초기화 후 새 인스턴스 생성
     UserPreferences.reset()

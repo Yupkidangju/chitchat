@@ -1,13 +1,29 @@
 // frontend/js/pages/chat_session.js
-// [v1.0.0] 채팅 세션 관리 모듈 — DD-11 모듈 분리
+// [v1.1.1] 채팅 세션 관리 모듈 — ES6 모듈 전환
 //
 // 세션 목록 로드, 세션 선택, 세션 생성 모달을 담당한다.
 // chat.js(오케스트레이터)에서 호출하며, chat_composer.js의 connectWebSocket을 사용한다.
+// [v1.1.1] 전역 변수 제거 → store.js로 상태 관리 이전
+
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+import { getState, setState } from '../store.js';
+import { renderMessageBubble } from './chat_utils.js'; // 사용 및 re-export 겸용
+
+// [v1.1.1] 순환 import 방지: connectWebSocket은 동적 import로 가져온다
+let _connectWebSocket = null;
+async function getConnectWebSocket() {
+  if (!_connectWebSocket) {
+    const mod = await import('./chat_composer.js');
+    _connectWebSocket = mod.connectWebSocket;
+  }
+  return _connectWebSocket;
+}
 
 /**
  * 세션 목록을 API에서 가져와 #session-list에 렌더링한다.
+ * [v1.1.1] onclick 인라인 → data-session-id + 이벤트 위임으로 전환
  */
-async function loadSessions() {
+export async function loadSessions() {
   const listEl = document.getElementById('session-list');
   try {
     const sessions = await apiGet('/sessions');
@@ -15,24 +31,33 @@ async function loadSessions() {
       listEl.innerHTML = `<p class="session-empty">세션이 없습니다</p>`;
       return;
     }
+    const currentId = getState('currentSessionId');
     listEl.innerHTML = sessions.map(s => `
-      <div class="session-item ${s.id === currentSessionId ? 'active' : ''}"
-           onclick="selectSession('${s.id}')">
+      <div class="session-item ${s.id === currentId ? 'active' : ''}"
+           data-session-id="${s.id}">
         <div class="session-title">${escapeHtml(s.title)}</div>
         <div class="session-status">${s.status}</div>
       </div>
     `).join('');
+
+    // [v1.1.1] 이벤트 위임 — 세션 클릭 핸들러
+    listEl.querySelectorAll('[data-session-id]').forEach(el => {
+      el.addEventListener('click', () => {
+        selectSession(el.dataset.sessionId);
+      });
+    });
   } catch (err) {
-    listEl.innerHTML = `<p style="color: var(--danger);">${err.message}</p>`;
+    showToast(`세션 목록 로딩 실패: ${err.message}`, 'error', 5000);
+    listEl.innerHTML = `<p class="session-empty">세션을 불러올 수 없습니다</p>`;
   }
 }
 
 /**
  * 세션을 선택하여 메시지를 로드하고 WebSocket을 연결한다.
- * 전역 변수 currentSessionId를 갱신한다.
+ * [v1.1.1] currentSessionId → setState('currentSessionId', ...)
  */
-async function selectSession(sessionId) {
-  currentSessionId = sessionId;
+export async function selectSession(sessionId) {
+  setState('currentSessionId', sessionId);
   document.getElementById('chat-input-area').style.display = 'flex';
 
   const messagesEl = document.getElementById('chat-messages');
@@ -47,11 +72,13 @@ async function selectSession(sessionId) {
       messagesEl.innerHTML = '<div class="chat-empty"><p>아직 메시지가 없습니다. 대화를 시작하세요!</p></div>';
     }
   } catch (err) {
-    messagesEl.innerHTML = `<div class="chat-empty"><p>세션 로드 실패: ${err.message}</p></div>`;
+    showToast(`세션 로드 실패: ${err.message}`, 'error', 5000);
+    messagesEl.innerHTML = '<div class="chat-empty"><p>세션을 불러올 수 없습니다</p></div>';
   }
 
-  // WebSocket 연결 (chat_composer.js)
-  connectWebSocket(sessionId);
+  // WebSocket 연결 (chat_composer.js — 동적 import로 순환 방지)
+  const connectWs = await getConnectWebSocket();
+  connectWs(sessionId);
 
   // 세션 목록 갱신 (활성 표시)
   await loadSessions();
@@ -60,28 +87,17 @@ async function selectSession(sessionId) {
 /**
  * [v1.0.0] 메시지 버블 HTML을 생성한다.
  * assistant 메시지에는 프롬프트 보기 버튼을 추가한다.
+ * [v1.1.1] onclick 인라인 → data-prompt-msg-id + 이벤트 위임으로 전환
  */
-function renderMessageBubble(m) {
-  const roleLabel = m.role === 'user' ? '👤 나' : '🤖 AI';
-  // [v1.0.0] assistant 메시지에 스냅샷이 있으면 프롬프트 보기 버튼 추가
-  let promptBtn = '';
-  if (m.role === 'assistant' && m.prompt_snapshot_json) {
-    promptBtn = `<button class="btn-show-prompt" onclick="showPromptSnapshot('${m.id}')">🔍 프롬프트</button>`;
-  }
-  return `
-    <div class="message message-${m.role}" data-msg-id="${m.id}">
-      <div class="message-role">${roleLabel}</div>
-      <div class="message-content">${escapeHtml(m.content)}</div>
-      ${promptBtn}
-    </div>
-  `;
-}
+// [v1.1.1] renderMessageBubble → chat_utils.js로 이동 (순환 import 방지)
+// chat.js 및 chat_composer.js에서 chat_utils.js를 직접 import
 
 /**
  * 새 채팅 세션 생성 모달을 표시한다.
  * [v1.0.0] ChatProfile + UserPersona 선택 후 세션을 생성한다.
+ * [v1.1.1] onclick 인라인 → addEventListener로 전환
  */
-async function showNewSessionModal() {
+export async function showNewSessionModal() {
   // 기존 모달 제거 후 새로 생성 (body 직속, 최상위 레이어)
   let modal = document.getElementById('session-modal');
   if (modal) modal.remove();
@@ -141,11 +157,16 @@ async function showNewSessionModal() {
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary" ${chatProfiles.length === 0 ? 'disabled' : ''}>생성</button>
-          <button type="button" class="btn" onclick="document.getElementById('session-modal').style.display='none'">취소</button>
+          <button type="button" class="btn" id="btn-cancel-session">취소</button>
         </div>
       </form>
     </div>
   `;
+
+  // 취소 버튼 이벤트 (인라인 onclick 대체)
+  document.getElementById('btn-cancel-session').addEventListener('click', () => {
+    document.getElementById('session-modal')?.remove();
+  });
 
   document.getElementById('new-session-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -178,7 +199,7 @@ async function showNewSessionModal() {
         chat_profile_id: chatProfileId,
         user_persona_id: userPersonaId,
       });
-      modal.style.display = 'none';
+      modal.remove();
       await loadSessions();
       await selectSession(session.id);
     } catch (err) {

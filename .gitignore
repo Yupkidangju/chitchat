@@ -22,7 +22,10 @@ ENV/
 *~
 
 # PyInstaller (빌드 산출물만 제외, chitchat.spec은 repo에 포함)
+output/
 
+# Codex
+.codex
 # Alembic
 alembic/versions/__pycache__/
 

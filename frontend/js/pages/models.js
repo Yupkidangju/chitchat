@@ -3,11 +3,13 @@
 //
 // Provider 선택 → 캐시된 모델 목록 → ModelProfile CRUD를 처리한다.
 
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
+
 /**
  * 모델 설정 페이지를 렌더링한다.
  * @param {HTMLElement} container - #page-container
  */
-async function renderModels(container) {
+export async function renderModels(container) {
   container.innerHTML = `
     <div class="card">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
@@ -25,6 +27,22 @@ async function renderModels(container) {
 
   document.getElementById('btn-add-model-profile').addEventListener('click', () => {
     showModelProfileForm();
+  });
+
+  // [v1.1.1] 이벤트 위임 — data-action 기반 핸들러
+  container.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-action]');
+    if (!el) return;
+    e.stopPropagation();
+    const actionId = el.dataset.id;
+    switch (el.dataset.action) {
+      case 'deleteModelProfile': deleteModelProfile(actionId); break;
+      case 'closeModal': {
+        const mid = el.dataset.modalId;
+        if (mid) { const modal = document.getElementById(mid); if (modal) modal.style.display = 'none'; }
+        break;
+      }
+    }
   });
 }
 
@@ -52,12 +70,13 @@ async function loadModelProfiles() {
           <span class="text-secondary" style="font-size: 0.8rem;">모델: ${escapeHtml(p.model_id)}</span>
         </div>
         <div class="profile-actions">
-          <button class="btn btn-sm btn-danger" onclick="deleteModelProfile('${p.id}')">삭제</button>
+          <button class="btn btn-sm btn-danger" data-action="deleteModelProfile" data-id="${p.id}">삭제</button>
         </div>
       </div>
     `).join('');
   } catch (err) {
-    listEl.innerHTML = `<p style="color: var(--danger);">로드 실패: ${escapeHtml(err.message)}</p>`;
+    showToast(`로드 실패: ${err.message}`, 'error', 5000);
+    listEl.innerHTML = '<p class="session-empty">데이터를 불러올 수 없습니다</p>';
   }
 }
 
@@ -105,7 +124,7 @@ async function showModelProfileForm() {
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">생성</button>
-          <button type="button" class="btn" onclick="document.getElementById('model-form-modal').style.display='none'">취소</button>
+          <button type="button" class="btn" data-action="closeModal" data-modal-id="model-form-modal">취소</button>
         </div>
       </form>
     </div>
@@ -171,3 +190,5 @@ async function deleteModelProfile(id) {
     showToast(`삭제 실패: ${err.message}`, 'error', 5000);
   }
 }
+
+

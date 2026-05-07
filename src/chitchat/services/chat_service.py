@@ -21,6 +21,7 @@ from chitchat.domain.provider_contracts import (
 )
 from chitchat.providers.registry import ProviderRegistry
 from chitchat.secrets.key_store import KeyStore
+from chitchat.domain.dynamic_state import DynamicCharacterState
 from chitchat.services.dynamic_state_engine import DynamicStateEngine
 from chitchat.services.prompt_service import PromptService
 
@@ -327,15 +328,18 @@ class ChatService:
             if not session:
                 return
 
-            # ChatProfile에서 AI Persona ID를 가져옴
+            # ChatProfile 로드
             cp = self._repos.chat_profiles.get_by_id(session.chat_profile_id)
             if not cp:
                 return
 
-            character_id = cp.ai_persona_id
-            if not character_id:
+            # [v1.1.1] ChatProfile에서 AI Persona ID를 가져옴
+            # ai_persona_ids_json은 JSON 배열 — 첫 번째를 주요 캐릭터로 사용
+            persona_ids = json.loads(cp.ai_persona_ids_json or "[]")
+            if not persona_ids:
                 logger.debug("AI 페르소나 미설정 — 동적 상태 갱신 생략")
                 return
+            character_id = persona_ids[0]
 
             # 기존 동적 상태 로드 또는 생성
             ds_row = self._repos.dynamic_states.get_by_character_session(
@@ -389,7 +393,7 @@ class ChatService:
         self,
         session: "ChatSessionRow",  # noqa: F821
         cp: "ChatProfileRow",  # noqa: F821
-        state: "DynamicCharacterState",  # noqa: F821
+        state: DynamicCharacterState,
         session_id: str,
         assistant_text: str,
     ) -> bool:
@@ -412,15 +416,17 @@ class ChatService:
             if prov.provider_kind != "lm_studio" and prov.secret_ref:
                 api_key = self._key_store.get_key(prov.id, prov.provider_kind)
 
-            # AI Persona 이름 가져오기
-            persona = self._repos.ai_personas.get_by_id(cp.ai_persona_id)
+            # [v1.1.1] AI Persona 이름 가져오기 — ai_persona_ids_json 기반
+            persona_ids = json.loads(cp.ai_persona_ids_json or "[]")
+            persona = self._repos.ai_personas.get_by_id(persona_ids[0]) if persona_ids else None
             character_name = persona.name if persona else "캐릭터"
 
             # 최근 대화 히스토리 로드
             msgs = self._repos.chat_messages.get_by_session(session_id)
             recent_messages = [(m.role, m.content) for m in msgs[-10:]]
 
-            # 분석 프롬프트 생성
+            # 분석 프롬프트 생성 — _dse는 _update_dynamic_state에서 None 체크 완료
+            assert self._dse is not None
             analysis_prompt = self._dse.build_analysis_prompt(
                 state, character_name, recent_messages,
             )
@@ -485,7 +491,7 @@ class ChatService:
 
     def _keyword_fallback_analysis(
         self,
-        state: "DynamicCharacterState",  # noqa: F821
+        state: DynamicCharacterState,
         text: str,
     ) -> None:
         """AI 분석 실패 시 키워드 기반으로 동적 상태를 갱신한다.

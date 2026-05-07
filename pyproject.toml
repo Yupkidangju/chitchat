@@ -39,7 +39,7 @@ chitchat = ["i18n/locales/*.json"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-exclude = [".agents/", ".venv/", "alembic/versions/", "frontend/"]
+exclude = [".agents/", ".venv/", "alembic/versions/", "frontend/", "output/", "build/"]
 
 [tool.ruff.lint]
 ignore = ["E701", "E702"]

@@ -349,7 +349,9 @@ AI Persona 모델을 **14개 필드(나이, 성별, 외모, 배경, 인간관계
 
 ### 결정
 
-Vibe Fill 결과는 즉시 저장되지 않고 UI에 **미리보기 체크리스트**로 표시되며, 사용자가 선택한 항목만 기존 로어북에 **Append(추가)**된다. 중복된 키/제목은 덮어쓰지 않고 무시하거나 대체한다.
+~~(v0.2.0 원안)~~ Vibe Fill 결과를 미리보기 체크리스트로 표시 후 선택 항목만 Append.
+
+**(v1.1.0 구현)** API 호출 시 생성된 엔트리를 **즉시 DB에 자동 저장**하고, UI에 미리보기로 표시한다. 불필요한 엔트리는 생성 후 수동 삭제/편집으로 관리한다. 이 방식이 UX 흐름상 단순하고, PUT 편집 기능이 제공되므로 사후 조정이 용이하다.
 
 ### 대안과 기각 사유
 
@@ -357,11 +359,13 @@ Vibe Fill 결과는 즉시 저장되지 않고 UI에 **미리보기 체크리스
 |---|---|
 | 전체 덮어쓰기 (Overwrite) | 기존 수동 작성 엔트리 영구 손실 위험 |
 | 임시 로어북(Draft) 분리 저장 | 로어북 관리 파편화 발생. 매번 로어북을 새로 만들어야 함 |
+| 미리보기 체크리스트 → 선택 Append (v0.2.0 원안) | 추가 UI 복잡도. PUT 편집으로 사후 조정이 더 실용적 |
 
 ### 결과
 
-- `LorebookPage`에 생성 결과 미리보기 목록 추가.
-- 저장 버튼 클릭 시 선택 항목만 DB에 Insert.
+- `POST /lorebooks/{id}/vibe-fill` → 즉시 DB 저장 + 미리보기 표시.
+- `PUT /lore-entries/{id}` → 생성 후 수동 편집 가능.
+- `DELETE /lore-entries/{id}` → 불필요한 엔트리 삭제.
 
 ---
 
@@ -388,7 +392,7 @@ Vibe Fill 결과는 즉시 저장되지 않고 UI에 **미리보기 체크리스
 - `vibe_fill_service.py`에서 비동기 순차 연쇄 호출 구현.
 - 이전 결과는 제목(Title)만 추출하여 토큰 절약.
 - 부분 실패 내성 확보 (3번째 청크에서 실패해도 1,2번째 결과는 유지).
-- UI에 QProgressBar로 N/4 진행률 실시간 피드백 표시.
+- (v1.1.0) `POST /worldbooks/{id}/vibe-fill` → 전체 청크 완료 후 결과 일괄 반환 + 즉시 DB 저장.
 
 ### 대안과 기각 사유
 
@@ -566,3 +570,149 @@ VibeSmith 9섹션 캐릭터 시스템은 대화가 진행되면서 관계/기억
 - `chat_service.py`: `start_stream()` 내부에서 `await self._update_dynamic_state()` 호출
 - `api/routes/chat.py`: `GET /sessions/{id}/dynamic-state`로 ZSTD 해동 후 JSON 조회
 - `frontend/js/pages/chat.js`: 스트리밍 `done` 시 `refreshDynamicState()` 자동 호출
+
+---
+
+## DD-18: SC-09 스트리밍 Stop 취소 (v1.1.1)
+
+### 배경
+
+spec SC-09와 audit_roadmap은 "스트리밍 중 Stop 취소"를 수용 기준으로 정의한다. 기존 구현에는 전송 버튼만 있고 취소 메커니즘이 없었다.
+
+### 결정
+
+WebSocket 프로토콜에 `{"type": "cancel"}` 수신 메시지 타입을 추가한다. 서버는 `asyncio.Task.cancel()`로 스트리밍을 중단하고 `streaming → stopped` 상태 전이를 수행한다. 프론트엔드는 전송 버튼을 '⏹ 중지'로 토글한다.
+
+**핵심 설계**: 스트리밍 중에도 cancel을 수신하기 위해 **receive-while-streaming 동시 실행 구조**를 사용한다. `asyncio.wait(FIRST_COMPLETED)`로 `receive_task`와 `streaming_task`를 동시 대기하여, 어느 쪽이든 먼저 완료되면 즉시 처리한다.
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| HTTP POST `/cancel` 별도 엔드포인트 | 이미 WebSocket 연결이 열려있으므로 불필요한 HTTP 왕복 |
+| WebSocket 연결 종료로 취소 | 세션 상태 전이 제어 불가, 재연결 시 상태 혼란 |
+| `await streaming_task` 직후 cancel 수신 | **receive loop가 차단되어 cancel 메시지를 읽을 수 없음** — 1차 감사 지적 |
+
+### 결과
+
+- `chat.py`: `asyncio.wait({receive_task, streaming_task}, FIRST_COMPLETED)` 동시 대기
+- `chat_composer.js`: `sendMessage()` 시 버튼 → '⏹ 중지' 전환, `done`/`error` 시 복원
+- `chat.js`: 버튼 클릭 이벤트를 `isStreaming` 상태로 분기
+
+---
+
+## DD-19: 런타임 경로 AppSettings 전환 (v1.1.1)
+
+### 배경
+
+`app.py`가 `~/.chitchat/`를 하드코딩했고, 이미 구현된 `config/paths.py`의 OS별 경로 결정 로직(`AppSettings`)을 사용하지 않았다. spec.md §3.3과 불일치.
+
+### 결정
+
+`app.py`에서 `AppSettings().app_data_dir`로 전환하고, 기존 `~/.chitchat/chitchat.db` 사용자를 위한 자동 마이그레이션(파일 복사) 로직을 `lifespan`에 추가한다.
+
+### 대안과 기각 사유
+
+| 대안 | 기각 사유 |
+|---|---|
+| 안내 메시지만 출력 | 사용자가 직접 파일을 이동해야 하므로 UX 저해 |
+| 심볼릭 링크 생성 | Windows에서 관리자 권한 필요, 크로스플랫폼 비호환 |
+
+### 결과
+
+- `app.py`: `APP_DATA_DIR = _settings.app_data_dir`
+- `_migrate_legacy_data()`: 기존 DB 자동 복사 + 파일명 매핑(`chitchat.db` → `chitchat.sqlite3`)
+
+---
+
+## DD-20: PyInstaller 번들 내 Alembic 경로 탐색 (v1.1.1)
+
+### 배경
+
+`migrations.py`가 `Path(__file__).parent.parent.parent.parent`로 프로젝트 루트를 계산하여 `alembic.ini`를 찾는다. 개발 환경에서는 정상이지만, PyInstaller frozen 환경에서는 소스 파일이 `_internal/` 아래에 패킹되어 경로가 맞지 않는다.
+
+### 결정
+
+`sys.frozen`과 `sys._MEIPASS`를 감지하여 frozen 환경에서는 `_MEIPASS` 기준, 개발 환경에서는 프로젝트 루트 기준으로 분기한다.
+
+### 결과
+
+- `migrations.py`: `if getattr(sys, "frozen", False)` → `Path(sys._MEIPASS)` 기준 경로 사용
+- `chitchat.spec`의 기존 datas 설정(`alembic.ini` → `"."`)과 정합성 확보
+
+---
+
+## DD-21: FastAPI 의존성 주입 프로바이더 (v1.1.1)
+
+### 배경
+
+모든 라우터에서 `request.app.state.xxx`로 서비스를 직접 참조한다. 이는 FastAPI의 `Depends()` 시스템을 활용하지 않아 단위 테스트 작성이 어렵고 결합도가 높다. (Gemini 감사 3-2 지적)
+
+### 결정
+
+`api/dependencies.py`를 신설하여 `get_chat_service`, `get_provider_service` 등의 Dependency Provider를 구현하고, **모든 라우터에서 `request.app.state` 직접 접근을 전면 제거**하여 `Depends()` 기반으로 완전 전환한다.
+
+### 결과
+
+- `api/dependencies.py`: [NEW] 7개 서비스 프로바이더 정의
+- `chat.py`, `providers.py`, `profiles.py`, `personas.py`, `settings.py`: 모든 엔드포인트에서 `request.app.state` → `Depends()` 전환 완료
+- 기존 헬퍼 함수(`_get_xxx`) 전면 제거
+- `request: Request` 파라미터 제거 (미사용 import도 ruff --fix로 정리)
+
+---
+
+## DD-22: Keyring Fallback 에러 안내 (v1.1.1)
+
+### 배경
+
+Linux headless 환경에서 `keyring` 백엔드(SecretService/gnome-keyring)가 없으면 `KeyStoreError`가 발생한다. 기존에는 HTTP 500으로 빠져 사용자에게 원인이 불명확했다.
+
+### 결정
+
+`providers.py`의 create/update 엔드포인트에서 `KeyStoreError`를 명시적으로 잡아 **422 + 설치 안내 메시지**를 반환한다.
+
+### 결과
+
+- `providers.py`: `except KeyStoreError` → `HTTPException(422, "gnome-keyring 또는 kwalletmanager를 설치해주세요")`
+
+---
+
+## DD-23: VibeFill 연쇄 컨텍스트 방어 (v1.1.1)
+
+### 배경
+
+Worldbook 청크 연쇄 생성 시 `prev_titles`가 무제한 증가하면 토큰 초과, 제목에 특수문자(`{}`, `[]`, `` ` `` 등)가 포함되면 프롬프트 인젝션 위험이 있다. (Gemini 감사 2-2 지적)
+
+### 결정
+
+`build_world_prompt()`에서 `prev_titles`를 최대 30개로 클램핑하고, 제목당 50자로 잘라내며, 프롬프트 구조를 깨는 특수문자를 정규식으로 제거한다.
+
+### 결과
+
+- `vibe_fill.py`: `_MAX_PREV_TITLES = 30`, `re.sub(r'[\\`{}[\]<>|]', '', t)[:50]`
+
+---
+
+## DD-24: 프론트엔드 ES6 모듈 전환 및 StateStore 도입 (v1.1.1)
+
+### 배경
+
+4차 감사에서 반복 지적된 유일한 미해결 항목: `index.html`에서 13개 `<script>` 순차 로드, 전역 변수(`currentSessionId`, `isStreaming` 등)에 의존하는 취약한 구조. 파일 로드 순서 의존, 네임스페이스 오염, Mock 테스트 불가 문제.
+
+### 결정
+
+1. **Native ES6 모듈**: 번들러 없이 브라우저 네이티브 `type="module"` 사용. `index.html`에서 `<script type="module" src="/js/app.js">` 단일 진입점.
+2. **StateStore 싱글톤**: `store.js` 신설, Pub-Sub 패턴 `getState()`/`setState()`/`subscribe()` API로 모든 공유 상태 관리.
+3. **이벤트 위임 전면 전환**: `onclick="funcName(...)"` 인라인 핸들러를 **전면 제거**. `data-action` + `container.addEventListener` 이벤트 위임으로 완전 전환. `window` 객체 오염 0건.
+4. **순환 import 방지**: `chat_utils.js`에 공용 함수를 분리하여 `chat_session.js` ↔ `chat_composer.js` 순환 의존성 방지. 동적 `import()`로 fallback.
+5. **개발 캐시 방지**: `NoCacheMiddleware` — JS/CSS/HTML에 `no-store` 헤더 적용 (frozen 환경 제외).
+
+### 결과
+
+- `frontend/js/store.js`: [NEW] Pub-Sub StateStore (`currentSessionId`, `currentPage`, `isStreaming`)
+- `frontend/js/pages/chat_utils.js`: [NEW] 공용 유틸리티 분리 (순환 import 방지)
+- `frontend/js/api.js`: `export` 추가
+- `frontend/js/pages/*.js`: 모든 12개 파일 `import`/`export` + `data-action` 이벤트 위임 전환
+- `frontend/js/app.js`: 중앙 라우터로 재작성, 모든 페이지 모듈 import
+- `frontend/index.html`: 13개 `<script>` → `<script type="module">` 단일 진입점
+- `src/chitchat/api/app.py`: `NoCacheMiddleware` 추가

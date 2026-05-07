@@ -6,15 +6,21 @@
 //   - chat_session.js: 세션 CRUD + 모달
 //   - chat_composer.js: WebSocket + 메시지 전송 + Inspector
 
-// 전역 공유 상태 — chat_session.js, chat_composer.js에서 참조
-let currentSessionId = null;
+import { apiGet, apiPost, apiPut, apiDelete, escapeHtml, showToast } from '../api.js';
 
+import { getState, setState } from '../store.js';
+
+import { loadSessions, showNewSessionModal } from './chat_session.js';
+
+import { sendMessage, stopStreaming, showPromptSnapshot } from './chat_composer.js';
+
+// 전역 공유 상태 → store.js로 이동 완료
 /**
  * 채팅 페이지를 렌더링한다.
  * 레이아웃 HTML을 생성하고, 이벤트 핸들러를 바인딩한다.
  * @param {HTMLElement} container
  */
-async function renderChat(container) {
+export async function renderChat(container) {
   container.innerHTML = `
     <div class="chat-layout">
       <div class="chat-sidebar">
@@ -71,8 +77,14 @@ async function renderChat(container) {
     showNewSessionModal();
   });
 
-  // 메시지 전송 (chat_composer.js)
-  document.getElementById('btn-send').addEventListener('click', sendMessage);
+  // [v1.1.1] 메시지 전송 / 스트리밍 중지 — 상태에 따라 분기 (chat_composer.js)
+  document.getElementById('btn-send').addEventListener('click', () => {
+    if (getState('isStreaming')) {
+      stopStreaming();
+    } else {
+      sendMessage();
+    }
+  });
   document.getElementById('chat-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -97,5 +109,14 @@ async function renderChat(container) {
       const targetId = 'tab-' + tab.dataset.tab;
       document.getElementById(targetId)?.classList.add('active');
     });
+  });
+
+  // [v1.1.1] 프롬프트 Inspector 이벤트 위임
+  // 메시지 영역에서 data-prompt-msg-id 버튼 클릭 시 Inspector 표시
+  document.getElementById('chat-messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-prompt-msg-id]');
+    if (btn) {
+      showPromptSnapshot(btn.dataset.promptMsgId);
+    }
   });
 }

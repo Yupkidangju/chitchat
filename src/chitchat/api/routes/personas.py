@@ -13,8 +13,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+
+from chitchat.api.dependencies import get_repos, get_vibe_fill_service
+from chitchat.db.repositories import RepositoryRegistry
 
 from chitchat.domain.ids import new_id
 
@@ -72,19 +75,13 @@ class PersonaDetailResponse(BaseModel):
     updated_at: str
 
 
-# --- 서비스 접근 헬퍼 ---
-
-def _get_repos(request: Request) -> Any:
-    """요청에서 RepositoryRegistry를 가져온다."""
-    return request.app.state.repos
-
-
 # --- 엔드포인트 ---
 
 @router.get("/personas")
-async def list_personas(request: Request) -> list[PersonaListItem]:
+async def list_personas(
+    repos: RepositoryRegistry = Depends(get_repos),
+) -> list[PersonaListItem]:
     """모든 페르소나 카드 목록을 반환한다."""
-    repos = _get_repos(request)
     rows = repos.persona_cards.get_all()
     return [
         PersonaListItem(
@@ -102,9 +99,11 @@ async def list_personas(request: Request) -> list[PersonaListItem]:
 
 
 @router.get("/personas/{persona_id}")
-async def get_persona(persona_id: str, request: Request) -> PersonaDetailResponse:
+async def get_persona(
+    persona_id: str,
+    repos: RepositoryRegistry = Depends(get_repos),
+) -> PersonaDetailResponse:
     """페르소나 카드 상세를 반환한다."""
-    repos = _get_repos(request)
     row = repos.persona_cards.get_by_id(persona_id)
     if not row:
         raise HTTPException(status_code=404, detail="페르소나를 찾을 수 없습니다")
@@ -131,14 +130,16 @@ async def get_persona(persona_id: str, request: Request) -> PersonaDetailRespons
 
 
 @router.post("/personas/vibe-fill")
-async def vibe_fill(body: VibeFillRequest, request: Request) -> PersonaSummaryResponse:
+async def vibe_fill(
+    body: VibeFillRequest,
+    repos: RepositoryRegistry = Depends(get_repos),
+    vibe_fill_service: Any = Depends(get_vibe_fill_service),
+) -> PersonaSummaryResponse:
     """바이브 텍스트로 9섹션 페르소나를 자동 생성한다.
 
     [v1.0.0 Phase 6] VibeFillService를 호출하여 실제 AI가 캐릭터를 생성하고,
     결과를 PersonaCardRepository에 자동 저장한다.
     """
-    vibe_fill_service = request.app.state.vibe_fill_service
-    repos = _get_repos(request)
 
     # AI를 호출하여 페르소나 생성
     result = await vibe_fill_service.generate_persona(
@@ -196,10 +197,77 @@ async def vibe_fill(body: VibeFillRequest, request: Request) -> PersonaSummaryRe
 
 
 @router.delete("/personas/{persona_id}")
-async def delete_persona(persona_id: str, request: Request) -> dict[str, bool]:
+async def delete_persona(
+    persona_id: str,
+    repos: RepositoryRegistry = Depends(get_repos),
+) -> dict[str, bool]:
     """페르소나를 삭제한다."""
-    repos = _get_repos(request)
     ok = repos.persona_cards.delete_by_id(persona_id)
     if not ok:
         raise HTTPException(status_code=404, detail="페르소나를 찾을 수 없습니다")
     return {"deleted": True}
+
+
+# ━━━ 페르소나 수동 편집 ━━━
+
+class PersonaUpdateRequest(BaseModel):
+    """[v1.1.0] 페르소나 수정 요청 — 이름, persona_json, 활성 상태를 수정한다."""
+    name: str = Field(min_length=1, max_length=80)
+    persona_json: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+
+@router.put("/personas/{persona_id}")
+async def update_persona(
+    persona_id: str, body: PersonaUpdateRequest,
+    repos: RepositoryRegistry = Depends(get_repos),
+) -> PersonaDetailResponse:
+    """[v1.1.0] 페르소나 카드를 수정한다.
+
+    name, persona_json, enabled 필드를 갱신한다.
+    persona_json 내부의 generation_summary, fixed_canon 등 메타데이터도 함께 갱신한다.
+    """
+    existing = repos.persona_cards.get_by_id(persona_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="페르소나를 찾을 수 없습니다")
+
+    # persona_json에서 메타데이터 추출
+    data = body.persona_json
+    gen_summary = data.get("generation_summary", {})
+    fixed_canon = data.get("fixed_canon", {})
+    identity = fixed_canon.get("identity", {})
+
+    # 기존 Row 갱신
+    now = datetime.now(timezone.utc).isoformat()
+    existing.name = body.name
+    existing.age = str(identity.get("age", existing.age))
+    existing.gender = str(identity.get("gender", existing.gender))
+    existing.occupation = str(identity.get("occupation", existing.occupation))
+    existing.core_tension = str(gen_summary.get("core_tension", existing.core_tension))
+    existing.realism_level = str(gen_summary.get("realism_level", existing.realism_level))
+    existing.persona_json = json.dumps(data, ensure_ascii=False)
+    existing.enabled = int(body.enabled)
+    existing.updated_at = now
+
+    saved = repos.persona_cards.upsert(existing)
+    logger.info("페르소나 수정: %s (%s)", saved.name, saved.id)
+
+    try:
+        persona_data = json.loads(saved.persona_json)
+    except (json.JSONDecodeError, TypeError):
+        persona_data = {}
+
+    return PersonaDetailResponse(
+        id=saved.id,
+        name=saved.name,
+        age=saved.age,
+        gender=saved.gender,
+        occupation=saved.occupation,
+        core_tension=saved.core_tension,
+        realism_level=saved.realism_level,
+        enabled=bool(saved.enabled),
+        persona_json=persona_data,
+        created_at=saved.created_at,
+        updated_at=saved.updated_at,
+    )
+
