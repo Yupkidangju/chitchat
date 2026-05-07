@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # scripts/build.py
-# [v0.2.0] 크로스플랫폼 빌드 스크립트
+# [v1.0.0] 크로스플랫폼 빌드 스크립트
+#
+# FastAPI + Uvicorn 웹 서버를 PyInstaller로 패키징한다.
+# 실행 파일 실행 시 로컬 서버가 시작되고 브라우저가 자동으로 열린다.
 #
 # 지원:
 # 1. 멀티 플랫폼 (Windows, macOS, Linux)
@@ -70,15 +73,29 @@ def check_dependencies() -> bool:
         import PyInstaller  # noqa: F401
     except ImportError:
         print("⚠️ PyInstaller가 설치되어 있지 않습니다.")
-        if prompt_yes_no("지금 requirements.txt를 통해 설치하시겠습니까?"):
-            return run_cmd([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
+        resp = input("지금 설치하시겠습니까? [Y/n]: ").strip().lower()
+        if resp in ("", "y", "yes"):
+            return run_cmd([sys.executable, "-m", "pip", "install", "pyinstaller>=6.20,<7"])
         return False
+
+    # chitchat.spec 존재 확인
+    spec_path = PROJECT_ROOT / "chitchat.spec"
+    if not spec_path.exists():
+        print(f"❌ {spec_path} 파일이 없습니다.")
+        return False
+
+    # frontend 디렉토리 확인
+    frontend_dir = PROJECT_ROOT / "frontend"
+    if not frontend_dir.exists():
+        print(f"❌ {frontend_dir} 디렉토리가 없습니다.")
+        return False
+
     return True
 
 def main() -> None:
     ensure_venv()
     
-    parser = argparse.ArgumentParser(description="Chitchat 멀티플랫폼 빌드 스크립트")
+    parser = argparse.ArgumentParser(description="Chitchat v1.0.0 빌드 스크립트 (FastAPI + PyInstaller)")
     parser.add_argument("--interactive", action="store_true", help="인터랙티브 모드로 실행")
     parser.add_argument("--skip-tests", action="store_true", help="코드 검증(ruff, pytest) 건너뛰기")
     parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT_DIR), help="빌드 산출물 저장 경로")
@@ -88,7 +105,7 @@ def main() -> None:
 
     # 인터랙티브 모드일 경우 값을 다시 묻기
     if args.interactive:
-        print("=== Chitchat 인터랙티브 빌드 설정 ===")
+        print("=== Chitchat v1.0.0 인터랙티브 빌드 설정 ===")
         ans_test = prompt_yes_no("코드 검증(ruff, pytest)을 실행하시겠습니까?", default=not args.skip_tests)
         args.skip_tests = not ans_test
         
@@ -102,7 +119,8 @@ def main() -> None:
     out_dir = Path(args.output).resolve()
     
     os.chdir(PROJECT_ROOT)
-    print("\n=== Chitchat 빌드 스크립트 ===")
+    print("\n=== Chitchat v1.0.0 빌드 스크립트 ===")
+    print(f"아키텍처: FastAPI + Uvicorn + Vanilla JS SPA")
     print(f"현재 플랫폼: {platform.system()} ({platform.release()})")
     print(f"출력 폴더: {out_dir}")
     
@@ -113,7 +131,7 @@ def main() -> None:
     # 1. 코드 검증
     if not args.skip_tests:
         print("\n--- [1/3] 코드 검증 ---")
-        if not run_cmd([sys.executable, "-m", "ruff", "check", "."]):
+        if not run_cmd([sys.executable, "-m", "ruff", "check", "src/", "tests/"]):
             if args.interactive and not prompt_yes_no("Ruff 검증 실패. 계속 진행하시겠습니까?", default=False):
                 sys.exit(1)
             elif not args.interactive:
@@ -161,12 +179,21 @@ def main() -> None:
             print(f"   크기: {size_mb:.2f} MB")
         else:
             print("⚠️ 경고: 실행 파일을 찾을 수 없습니다.")
+        
+        # frontend 번들 확인
+        frontend_in_bundle = target_dir / "_internal" / "frontend"
+        if frontend_in_bundle.exists():
+            print(f"✅ 프론트엔드 번들 포함: {frontend_in_bundle}")
+        else:
+            print("⚠️ 경고: 프론트엔드 번들이 포함되지 않았습니다.")
     else:
         print("❌ 예상한 출력 디렉토리가 없습니다.")
         sys.exit(1)
 
     print("\n=== 모든 작업 성공! ===")
     print(f"결과물 경로: {target_dir}")
+    print(f"실행 방법: {target_dir / exe_name}")
+    print("  → 실행 시 http://localhost:8000 에서 서버가 시작되고 브라우저가 자동으로 열립니다.")
 
 if __name__ == "__main__":
     main()

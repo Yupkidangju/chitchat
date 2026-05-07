@@ -131,7 +131,14 @@ def create_app() -> FastAPI:
     app.include_router(settings.router, prefix="/api", tags=["settings"])
 
     # 프론트엔드 정적 파일 서빙
-    frontend_dir = Path(__file__).parent.parent.parent.parent / "frontend"
+    # [v1.0.0] PyInstaller 번들 환경에서는 sys._MEIPASS 기준으로 frontend를 찾는다.
+    import sys
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        # PyInstaller 번들 환경 — _MEIPASS/frontend 경로 사용
+        frontend_dir = Path(sys._MEIPASS) / "frontend"
+    else:
+        # 개발 환경 — 프로젝트 루트/frontend 경로 사용
+        frontend_dir = Path(__file__).parent.parent.parent.parent / "frontend"
     if frontend_dir.exists():
         app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")
         logger.info("프론트엔드 정적 파일 마운트: %s", frontend_dir)
