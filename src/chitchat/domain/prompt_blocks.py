@@ -1,5 +1,5 @@
 # src/chitchat/domain/prompt_blocks.py
-# [v0.1.0b0] 프롬프트 블록 타입 정의
+# [v1.0.0] 프롬프트 블록 타입 정의
 #
 # spec.md §12.1~§12.3에서 정의된 프롬프트 블록 구조를 구현한다.
 # PromptBlock: 단일 블록 (종류, 내용, 토큰 추정치)

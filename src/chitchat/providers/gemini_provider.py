@@ -1,5 +1,5 @@
 # src/chitchat/providers/gemini_provider.py
-# [v0.1.0b0] Gemini Provider adapter
+# [v1.0.0] Gemini Provider adapter
 #
 # google-genai SDK를 사용하여 Gemini API에 접근한다.
 # spec.md §10.1: input_token_limit → context_window_tokens, output_token_limit → max_output_tokens

@@ -2,8 +2,8 @@
 
 ## 문서 메타
 
-- 문서 버전: `v0.2.0`
-- 상위 문서: `spec.md v0.2.0 BETA`
+- 문서 버전: `v1.0.0`
+- 상위 문서: `spec.md v1.0.0`
 - 목적: 처음 이 프로젝트를 클론한 사람이 이 문서만 보고 첫 실행을 성공시켜야 한다.
 
 ---
@@ -24,7 +24,7 @@
 |---|---|
 | Windows 11+ | 없음 (Python 설치에 pip 포함) |
 | macOS 14+ | Xcode Command Line Tools (`xcode-select --install`) |
-| Ubuntu 24.04+ | `sudo apt install python3.13 python3.13-venv libxcb-cursor0 libgl1` |
+| Ubuntu 24.04+ | `sudo apt install python3.13 python3.13-venv` |
 
 ### 1.3 Keyring 백엔드
 
@@ -58,16 +58,15 @@ Python 프로젝트는 별도 스캐폴딩 도구가 필요 없다. `pyproject.t
 
 ```bash
 # 프로젝트 루트에서 실행
+mkdir -p src/chitchat/api/routes
 mkdir -p src/chitchat/config
 mkdir -p src/chitchat/db
 mkdir -p src/chitchat/domain
 mkdir -p src/chitchat/providers
 mkdir -p src/chitchat/secrets
 mkdir -p src/chitchat/services
-mkdir -p src/chitchat/ui/pages
-mkdir -p src/chitchat/ui/widgets
-# DD-11: viewmodels는 MVP v0.1에서 의도적 생략 (v0.2 도입 예정)
-# mkdir -p src/chitchat/ui/viewmodels
+mkdir -p frontend/css
+mkdir -p frontend/js/pages
 mkdir -p tests
 mkdir -p alembic/versions
 ```
@@ -124,10 +123,11 @@ build-backend = "setuptools.backends._legacy:_Backend"
 
 [project]
 name = "chitchat"
-version = "0.2.0"
+version = "1.0.0"
 requires-python = ">=3.12"
 dependencies = [
-  "PySide6>=6.11,<6.12",
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.34,<1",
   "SQLAlchemy>=2.0.49,<2.1",
   "alembic>=1.18.4,<1.19",
   "pydantic>=2.12,<3",
@@ -135,6 +135,7 @@ dependencies = [
   "httpx>=0.28,<0.29",
   "keyring>=25.7,<26",
   "google-genai>=1.73,<2",
+  "zstandard>=0.23,<1",
 ]
 
 [project.optional-dependencies]
@@ -142,8 +143,6 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-asyncio>=0.25,<1",
   "ruff>=0.8,<1",
-  "mypy>=1.14,<2",
-  "pyinstaller>=6.20,<7",
 ]
 
 [tool.setuptools.packages.find]
@@ -155,14 +154,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 ignore = ["E701", "E702"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/chitchat/ui/**" = ["E501"]
-
-[tool.mypy]
-python_version = "3.12"
-strict = true
-warn_return_any = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -189,45 +180,38 @@ asyncio_mode = "auto"
 
 ```python
 # src/chitchat/main.py
-# 앱 엔트리 포인트. QApplication 생성 후 create_app()을 호출한다.
-import sys
-from PySide6.QtWidgets import QApplication
+# [v1.0.0] FastAPI + Uvicorn 앱 엔트리 포인트.
+# DB 초기화 → FastAPI 라우트 등록 → 정적 파일 서빙 → Uvicorn 실행.
+
+import uvicorn
 from chitchat.app import create_app
 
-def main() -> None:
-    qt_app = QApplication(sys.argv)
-    window = create_app()
-    window.show()
-    sys.exit(qt_app.exec())
+app = create_app()
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="127.0.0.1", port=8000)
 ```
 
 ### 6.2 app.py
 
 ```python
 # src/chitchat/app.py
-# create_app() 팩토리: Settings → DB → Services → MainWindow
+# create_app() 팩토리: Settings → DB → Services → FastAPI 라우트 등록.
+
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from chitchat.config.paths import ensure_app_dirs
 from chitchat.config.settings import AppSettings
 from chitchat.db.engine import create_db_engine, create_session_factory
-from chitchat.db.models import Base
-from chitchat.db.repositories import RepositoryRegistry
-from chitchat.providers.registry import ProviderRegistry
-from chitchat.ui.main_window import MainWindow
-from chitchat.ui.theme import build_global_stylesheet
+from chitchat.db.migrations import run_migrations
 
-def create_app() -> tuple[QApplication, MainWindow]:
+def create_app() -> FastAPI:
     settings = AppSettings()
     ensure_app_dirs(settings.app_data_dir)
     engine = create_db_engine(settings.db_path)
-    from chitchat.db.migrations import run_migrations
-    run_migrations(engine)  # Alembic으로 스키마 생성/업그레이드 일원화
-    session_factory = create_session_factory(engine)
-    repos = RepositoryRegistry(session_factory)
-    # ... 서비스 생성, 페이지 등록
-    return app, window
+    run_migrations(engine)
+    # ... 라우트 등록, 정적 파일 마운트
+    return app
 ```
 
 ---
@@ -236,9 +220,8 @@ def create_app() -> tuple[QApplication, MainWindow]:
 
 ### 7.1 데이터베이스 마이그레이션
 
-- v0.2.0부터 `chitchat`은 `Base.metadata.create_all()`을 사용하지 않습니다.
-- `run_migrations(engine)` 단일 호출로 신규 DB 스키마 생성과 기존 DB 업그레이드를 모두 처리합니다.
-- 내부적으로 `alembic_version` 테이블과 컬럼 존재 여부를 분석하여 신규/v0.1/partial DB를 자동 감지합니다.
+- `run_migrations(engine)` 단일 호출로 신규 DB 스키마 생성과 기존 DB 업그레이드를 모두 처리한다.
+- 내부적으로 `alembic_version` 테이블과 컬럼 존재 여부를 분석하여 신규/기존/partial DB를 자동 감지한다.
 
 ### 7.2 alembic.ini 핵심 항목
 
@@ -274,10 +257,10 @@ python -m chitchat.main
 1. App data 디렉토리 생성됨
 2. `chitchat.sqlite3` 파일 생성됨
 3. `run_migrations(engine)` → Alembic이 전체 스키마 생성
-4. MainWindow 표시됨
-5. Chat 페이지에 Setup Checklist Empty State 표시됨
+4. FastAPI 서버가 `http://127.0.0.1:8000`에서 시작됨
+5. 브라우저에서 `http://localhost:8000` 접속 시 채팅 페이지 표시됨
 
-> **참고 (v0.2.0)**: 앱 시작 시 `run_migrations(engine)`이 호출되어 기존 DB 스키마가 최신 상태로 유지된다. 수동으로 마이그레이션이 필요하면 `alembic upgrade head`를 실행한다.
+> **참고 (v1.0.0)**: 앱 시작 시 `run_migrations(engine)`이 호출되어 기존 DB 스키마가 최신 상태로 유지된다. 수동으로 마이그레이션이 필요하면 `alembic upgrade head`를 실행한다.
 
 ---
 
@@ -289,14 +272,11 @@ python -m chitchat.main
 # 린팅
 ruff check .
 
-# 타입 검사
-mypy src
-
 # 테스트
 pytest -q
 
-# 전체 검증 (CI와 동일)
-ruff check . && mypy src && pytest -q
+# 전체 검증
+ruff check src/ tests/ && pytest -q
 ```
 
 ### 9.2 마이그레이션
@@ -314,81 +294,23 @@ alembic downgrade -1
 
 ---
 
-## 10. 패키징 (멀티 플랫폼)
-
-`scripts/build.py` 스크립트를 사용하여 안전하고 쉽게 빌드할 수 있다.
-
-### 10.1 빌드 실행 (CLI 모드)
-
-```bash
-# 기본 모드 (코드 검증 -> output 디렉토리로 빌드)
-python scripts/build.py
-
-# 테스트 및 검증 건너뛰기
-python scripts/build.py --skip-tests
-
-# 빌드 산출물 경로 변경
-python scripts/build.py --output /path/to/custom_dir
-```
-
-### 10.2 빌드 실행 (인터랙티브 모드)
-
-명령어가 기억나지 않는다면 `--interactive` 옵션을 사용한다.
-
-```bash
-python scripts/build.py --interactive
-```
-
-### 10.3 빌드 산출물 확인
-
-빌드 성공 시 지정된 출력 디렉토리(기본값: `./output`)에 아래 파일이 생성되어야 한다:
-
-```txt
-output/chitchat/          ← one-folder 패키지
-  chitchat              ← 실행 파일 (Windows: chitchat.exe)
-  _internal/            ← 의존성 번들
-build/                  ← 빌드 중간 파일
-chitchat.spec           ← PyInstaller spec (pyproject.toml과 별개)
-```
-
-### 10.3 빌드 후 검증
-
-```bash
-# 패키지 실행
-./dist/chitchat/chitchat
-
-# 확인할 것:
-# 1. MainWindow가 정상 표시됨
-# 2. App data 디렉토리가 생성됨
-# 3. SQLite DB 파일이 생성됨
-# 4. Provider 페이지에서 폼이 렌더링됨
-```
-
----
-
-## 11. 배포 전 체크리스트
+## 10. 배포 전 체크리스트
 
 - [x] `ruff check .` 경고 없음
-- [x] `mypy src/chitchat` 오류 없음 (53개 소스 파일 검사)
-- [x] `pytest -q` 전체 통과 (223개)
-- [x] SC-01~02, SC-06~08, SC-10 수용 테스트 자동화 통과
+- [x] `pytest -q` 전체 통과 (213건)
+- [x] SC-01~02, SC-06~08 수용 테스트 통과
 - [ ] SC-03~05, SC-09 수용 테스트 (실제 Provider API 필요, 수동 확인)
-- [x] PyInstaller spec 작성 완료
-- [ ] PyInstaller one-folder 빌드 성공 (OS별 수동 확인)
-- [ ] 빌드된 앱에서 Provider 등록 → 채팅 전체 플로우 동작
 - [x] API Key가 SQLite에 평문으로 저장되지 않음 확인
-- [x] CHANGELOG.md에 v0.1.0b0 항목 기록
+- [x] CHANGELOG.md에 v1.0.0 항목 기록
 - [x] README.md 다국어 작성 완료
 
 ---
 
-## 12. 흔한 실패와 해결
+## 11. 흔한 실패와 해결
 
 | 실패 증상 | 원인 | 해결 |
 |---|---|---|
 | `ModuleNotFoundError: chitchat` | `pip install -e .` 미실행 | `pip install -e ".[dev]"` 실행 |
-| `ImportError: PySide6` | Python 버전 불일치 | Python 3.13.13 확인 |
 | `KeyringError` | Linux에서 SecretService 미설치 | `gnome-keyring` 또는 `kwalletmanager` 설치 |
 | Alembic `Can't locate revision` | 마이그레이션 파일 누락 | `alembic revision --autogenerate` 실행 |
-| PyInstaller `hidden import` | PySide6 플러그인 누락 | `--hidden-import PySide6.QtWidgets` 추가 |
-| `xcb` 관련 에러 (Linux) | X11 라이브러리 누락 | `libxcb-cursor0` 설치 |
+| `Address already in use` | 포트 8000 충돌 | 기존 프로세스 종료 또는 `--port 8001` 사용 |

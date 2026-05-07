@@ -1,5 +1,5 @@
 # src/chitchat/providers/lmstudio_provider.py
-# [v0.1.0b0] LM Studio Provider adapter
+# [v1.0.0] LM Studio Provider adapter
 #
 # httpx를 사용하여 로컬 LM Studio 서버에 접근한다.
 # spec.md §10.3: token limit 미제공 시 기본값 context=8192, output=2048 적용.

@@ -1,5 +1,5 @@
 # src/chitchat/db/models.py
-# [v0.1.0b0] SQLAlchemy ORM 모델 정의 (12 테이블)
+# [v1.0.0] SQLAlchemy ORM 모델 정의 (12 테이블)
 #
 # spec.md §9에서 정의된 DB 스키마를 SQLAlchemy ORM 모델로 구현한다.
 # 모든 테이블은 TEXT PK(ULID 기반)를 사용하고, 타임스탬프는 ISO 8601 문자열이다.

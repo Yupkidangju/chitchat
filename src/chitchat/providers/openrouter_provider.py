@@ -1,5 +1,5 @@
 # src/chitchat/providers/openrouter_provider.py
-# [v0.1.0b0] OpenRouter Provider adapter
+# [v1.0.0] OpenRouter Provider adapter
 #
 # httpx를 사용하여 OpenRouter API에 접근한다.
 # spec.md §10.2: context_length → context_window_tokens

@@ -1,5 +1,5 @@
 # src/chitchat/services/profile_service.py
-# [v0.1.0b0] 프로필 CRUD 서비스 (UserPersona, AIPersona, Lorebook, Worldbook, ChatProfile)
+# [v1.0.0] 프로필 CRUD 서비스 (UserPersona, AIPersona, Lorebook, Worldbook, ChatProfile)
 #
 # UI/ViewModel은 이 서비스만 호출하고, 직접 Repository를 사용하지 않는다.
 # 각 엔티티의 CRUD와 Pydantic 검증을 오케스트레이션한다.

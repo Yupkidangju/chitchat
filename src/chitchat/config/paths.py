@@ -1,5 +1,5 @@
 # src/chitchat/config/paths.py
-# [v0.1.0b0] OS별 앱 데이터 경로 결정 및 디렉토리 생성
+# [v1.0.0] OS별 앱 데이터 경로 결정 및 디렉토리 생성
 #
 # spec.md §3.3에서 정의된 런타임 저장 경로를 구현한다.
 # Windows: %APPDATA%/chitchat/

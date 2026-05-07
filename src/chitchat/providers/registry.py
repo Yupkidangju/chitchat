@@ -1,5 +1,5 @@
 # src/chitchat/providers/registry.py
-# [v0.1.0b0] Provider 레지스트리
+# [v1.0.0] Provider 레지스트리
 #
 # provider_kind → adapter 인스턴스 매핑을 관리한다.
 # 새 Provider 추가 시 이 레지스트리에 등록하면 Service/UI는 수정 불필요.

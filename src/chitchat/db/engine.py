@@ -1,5 +1,5 @@
 # src/chitchat/db/engine.py
-# [v0.1.0b0] SQLAlchemy 엔진 팩토리
+# [v1.0.0] SQLAlchemy 엔진 팩토리
 #
 # SQLite 연결을 위한 SQLAlchemy 엔진과 세션 팩토리를 생성한다.
 # spec.md §4 D-03에서 SQLite + SQLAlchemy 2.0 ORM으로 동결.

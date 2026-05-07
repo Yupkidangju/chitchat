@@ -1,5 +1,5 @@
 # src/chitchat/config/user_preferences.py
-# [v0.3.0] 사용자 설정 영속화
+# [v1.0.0] 사용자 설정 영속화
 #
 # app_data_dir/settings.json에 사용자 설정을 평문 JSON으로 저장한다.
 # API Key는 OS keyring(key_store.py)으로 별도 관리되므로 이 파일에 포함하지 않는다.

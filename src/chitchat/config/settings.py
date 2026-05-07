@@ -1,5 +1,5 @@
 # src/chitchat/config/settings.py
-# [v0.1.0b0] 앱 설정 관리 (pydantic-settings 기반)
+# [v1.0.0] 앱 설정 관리 (pydantic-settings 기반)
 #
 # 환경변수와 .env 파일에서 설정을 로딩한다.
 # 모든 설정은 AppSettings 인스턴스를 통해 접근한다.

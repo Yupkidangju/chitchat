@@ -1,5 +1,5 @@
 # src/chitchat/domain/profiles.py
-# [v0.1.0b0] Pydantic 프로필 도메인 모델 정의
+# [v1.0.0] Pydantic 프로필 도메인 모델 정의
 #
 # spec.md §8.2, §8.3에서 동결된 프로필 계약을 코드로 구현한다.
 # ModelProfile, UserPersona, AIPersona, Lorebook, Worldbook, ChatProfile 타입을 정의한다.

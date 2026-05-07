@@ -1,5 +1,5 @@
 # src/chitchat/services/vibe_fill_service.py
-# [v0.3.0] Vibe Fill 서비스 — 바이브 텍스트를 구조화된 AI Persona로 변환
+# [v1.0.0] Vibe Fill 서비스 — 바이브 텍스트를 구조화된 AI Persona로 변환
 #
 # Provider의 LLM을 호출하여 14개 필드를 JSON으로 생성한 뒤,
 # 도메인 로직(vibe_fill.py)으로 파싱하여 결과를 반환한다.

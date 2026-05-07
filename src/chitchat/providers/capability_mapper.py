@@ -1,5 +1,5 @@
 # src/chitchat/providers/capability_mapper.py
-# [v0.1.0b0] Provider별 raw 응답 → ModelCapability 정규화
+# [v1.0.0] Provider별 raw 응답 → ModelCapability 정규화
 #
 # 각 Provider의 모델 메타데이터 raw 응답을 통일된 ModelCapability로 변환한다.
 # spec.md §10.1~§10.3의 매핑 규칙을 구현한다.

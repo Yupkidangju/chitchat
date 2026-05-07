@@ -1,5 +1,5 @@
 # src/chitchat/db/repositories.py
-# [v0.1.0b0] Repository 패턴 구현 및 RepositoryRegistry
+# [v1.0.0] Repository 패턴 구현 및 RepositoryRegistry
 #
 # 각 테이블에 대한 CRUD를 Repository 클래스로 캡슐화한다.
 # RepositoryRegistry는 모든 Repository 인스턴스를 관리하는 단일 진입점이다.

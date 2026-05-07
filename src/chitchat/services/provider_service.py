@@ -1,5 +1,5 @@
 # src/chitchat/services/provider_service.py
-# [v0.1.0b0] Provider 유스케이스 서비스
+# [v1.0.0] Provider 유스케이스 서비스
 #
 # Provider CRUD, 연결 테스트, 모델 목록 패치, model_cache 갱신을 오케스트레이션한다.
 # UI/ViewModel은 이 서비스만 호출하고, 직접 adapter나 repository를 사용하지 않는다.

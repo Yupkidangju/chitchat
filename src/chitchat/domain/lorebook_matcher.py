@@ -1,5 +1,5 @@
 # src/chitchat/domain/lorebook_matcher.py
-# [v0.1.0b0] 로어북 키워드 매칭 엔진
+# [v1.0.0] 로어북 키워드 매칭 엔진
 #
 # spec.md §12.4 알고리즘을 구현한다:
 # 1. 최근 N개 메시지에서 텍스트를 결합한다.

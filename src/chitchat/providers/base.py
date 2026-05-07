@@ -1,5 +1,5 @@
 # src/chitchat/providers/base.py
-# [v0.1.0b0] Provider 공통 기반: Protocol re-export, 에러 타입
+# [v1.0.0] Provider 공통 기반: Protocol re-export, 에러 타입
 #
 # 모든 Provider adapter가 공유하는 에러 타입과 Protocol을 정의한다.
 # Service 계층은 이 모듈의 타입만 참조하고 구체 adapter에 의존하지 않는다.

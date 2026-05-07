@@ -1,5 +1,5 @@
 # src/chitchat/secrets/key_store.py
-# [v0.1.0b0] OS Keyring 래퍼
+# [v1.0.0] OS Keyring 래퍼
 #
 # spec.md §4 D-05에서 동결: API Key는 OS keyring에 저장하고 DB에는 secret_ref만 저장.
 # service name: "chitchat:{provider_profile_id}"

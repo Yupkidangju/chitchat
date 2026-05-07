@@ -1,5 +1,5 @@
 # src/chitchat/domain/ids.py
-# [v0.1.0b0] ULID 기반 정렬 가능 ID 생성 모듈
+# [v1.0.0] ULID 기반 정렬 가능 ID 생성 모듈
 #
 # 모든 엔티티 ID는 prefix + ULID 형태로 생성한다.
 # ULID는 시간 순 정렬이 가능하므로 DB 인덱싱에 유리하다.

@@ -1,5 +1,5 @@
 # src/chitchat/domain/provider_contracts.py
-# [v0.1.0b0] Provider 통신 계약 타입 정의
+# [v1.0.0] Provider 통신 계약 타입 정의
 #
 # spec.md §8.1에서 동결된 Provider 경계 계약을 코드로 구현한다.
 # ChatProvider Protocol과 요청/응답 타입, 모델 capability 타입을 정의한다.

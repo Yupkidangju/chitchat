@@ -1,5 +1,5 @@
 # src/chitchat/services/prompt_service.py
-# [v0.1.0b0] 프롬프트 조립 오케스트레이션 서비스
+# [v1.0.0] 프롬프트 조립 오케스트레이션 서비스
 #
 # ChatProfile에서 참조된 엔티티들을 로드하고,
 # prompt_assembler + lorebook_matcher를 호출하여 AssembledPrompt를 생성한다.
