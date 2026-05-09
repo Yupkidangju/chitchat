@@ -94,7 +94,7 @@ export async function renderSettings(container) {
           <option value="false" ${!settings.streaming_enabled ? 'selected' : ''}>비활성화</option>
         </select>
         <small style="color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 4px;">
-          비활성화하면 AI 응답이 한 번에 표시됩니다.
+          v2에서 비스트리밍 모드를 지원할 예정입니다. (현재 설정 저장만 가능)
         </small>
       </div>
       <div class="form-group">

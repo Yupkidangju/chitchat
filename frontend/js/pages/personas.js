@@ -188,7 +188,8 @@ async function showVibeFillForm() {
       const models = providerModels[provSelect.value] || [];
       modelSelect.innerHTML = models.length === 0
         ? '<option value="">모델 없음</option>'
-        : models.map(m => `<option value="${m.id}">${escapeHtml(m.name || m.id)}</option>`).join('');
+        // [v1.1.3] ModelCacheResponse 필드명: model_id, display_name
+        : models.map(m => `<option value="${m.model_id}">${escapeHtml(m.display_name || m.model_id)}</option>`).join('');
     };
     provSelect.addEventListener('change', updateModels);
     if (providers.length > 0) updateModels();
