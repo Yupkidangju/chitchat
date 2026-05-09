@@ -9,6 +9,13 @@
 
 ## [미출시]
 
+### 수정됨 (v1.1.3: 9차 감사 Remediation — Vibe Fill 스키마 수정 + 문서 정합성)
+
+- **Vibe Fill UI 스키마 일치**: `personas.js` Vibe Fill 모달에 Provider/Model 선택 UI 추가. 백엔드 `VibeFillRequest`가 요구하는 `provider_profile_id`, `model_id` 필수 필드를 전송하도록 수정 — 기존에는 422 에러 발생
+- **btn.onclick 프로퍼티 할당 제거**: `chat_composer.js` L68의 `btn.onclick = ...` → `btn.addEventListener('click', ...)` 전환 (spec §5.1.2 이벤트 바인딩 강제 규칙 준수)
+- **기본 테마 light 전환**: `user_preferences.py` 기본값을 `dark` → `light`로 변경. designs.md §디자인 금지 사항 "v0.1 BETA에서 다크 기본 테마 금지" 준수
+- **문서 정합성 명확화**: spec.md에 SC-06 capability UI 및 스트리밍 비활성화의 v1.0 구현 범위 주석 추가. audit_roadmap.md P10 검증 정규식 범위를 `frontend/js/**/*.js`로 확장
+
 ### 수정됨 (v1.1.2: 6차 감사 Remediation — 인라인 이벤트 완전 제거)
 
 - **onclick 인라인 핸들러 완전 제거**: `lorebooks.js`(L156), `worldbooks.js`(L156)에 잔존하던 `onclick='showLoreEntryEditModal(${JSON.stringify(e)...})'` 안티 패턴을 `data-action` + 이벤트 위임으로 전환. ES6 모듈 스코프 격리 100% 달성

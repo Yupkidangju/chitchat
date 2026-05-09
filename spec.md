@@ -95,11 +95,13 @@ MVP는 아래 10개 검증을 통과해야 완료로 본다.
 | SC-03 | Gemini 모델 목록 로딩 가능 | 실제 API 또는 mock provider 테스트 |
 | SC-04 | OpenRouter 모델 목록 로딩 가능 | 실제 API 또는 mock provider 테스트 |
 | SC-05 | LM Studio `/v1/models` 로딩 가능 | 로컬 서버 또는 mock provider 테스트 |
-| SC-06 | 모델 capability에 없는 파라미터는 UI에서 숨김 | unit test + 수동 UI |
+| SC-06 | 모델 capability에 없는 파라미터는 UI에서 숨김 | unit test + 수동 UI |  <!-- v1.0 MVP: 자유 JSON 입력 제공, capability 기반 동적 UI는 v2 로드맵 -->
 | SC-07 | 로어북 키워드가 최근 8개 메시지에서 매칭됨 | unit test |
 | SC-08 | PromptOrder 변경 시 최종 프롬프트 순서가 변경됨 | unit test |
 | SC-09 | 스트리밍 중 Stop 버튼으로 취소 가능 | 수동 UI + service test |
 | SC-10 | PyInstaller one-folder build 생성 | OS별 빌드 명령 실행 |
+
+> **v1.0 구현 범위 주석:** 스트리밍 채팅 비활성화 설정은 UserPreferences에 저장되지만, 실제 채팅 경로(WebSocket)에의 반영은 v2 로드맵 대상이다. 현재는 설정 UI만 제공한다.
 
 ### 2.3 v1.0.0 비목표
 

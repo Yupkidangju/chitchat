@@ -122,7 +122,8 @@ def test_save_creates_directory(tmp_path: Path) -> None:
 def test_extended_defaults() -> None:
     """[v1.0.0] 확장 설정 필드의 기본값 검증."""
     prefs = UserPreferences.instance()
-    assert prefs.theme == "dark"
+    # [v1.1.3] 기본 테마 dark → light 변경 (designs.md 준수)
+    assert prefs.theme == "light"
     assert prefs.font_size == "medium"
     assert prefs.streaming_enabled is True
     assert prefs.default_provider_id == ""
@@ -170,6 +171,7 @@ def test_reset_restores_defaults() -> None:
     UserPreferences.reset()
     prefs2 = UserPreferences.instance()
 
-    assert prefs2.theme == "dark"
+    # [v1.1.3] 기본 테마 dark → light 변경
+    assert prefs2.theme == "light"
     assert prefs2.streaming_enabled is True
 

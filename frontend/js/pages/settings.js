@@ -162,7 +162,8 @@ export async function renderSettings(container) {
       await apiPost('/settings/reset', {});
       // 폰트 크기 + 테마 기본값 적용
       applyFontSize('medium');
-      applyTheme('dark');
+      // [v1.1.3] 기본 테마 light로 변경 (designs.md 준수)
+      applyTheme('light');
       // 페이지 새로고침하여 설정 반영
       await renderSettings(container);
     } catch (err) {

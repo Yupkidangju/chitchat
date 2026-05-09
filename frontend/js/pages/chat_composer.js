@@ -65,7 +65,8 @@ export function connectWebSocket(sessionId) {
           const btn = document.createElement('button');
           btn.className = 'btn-show-prompt';
           btn.textContent = '🔍 프롬프트';
-          btn.onclick = () => showPromptSnapshot(data.message_id);
+          // [v1.1.3] onclick 프로퍼티 할당 → addEventListener 전환 (spec §5.1.2 준수)
+          btn.addEventListener('click', () => showPromptSnapshot(data.message_id));
           streamingMsg.appendChild(btn);
           // 자동으로 Inspector에 최신 스냅샷 표시
           showPromptSnapshot(data.message_id);

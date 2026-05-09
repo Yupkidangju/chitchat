@@ -28,7 +28,8 @@ _SETTINGS_FILENAME = "settings.json"
 _DEFAULTS: dict[str, str] = {
     "ui_locale": "ko",
     "vibe_output_language": "ko",
-    "theme": "dark",
+    # [v1.1.3] designs.md '다크 기본 테마 금지' 준수를 위해 light로 변경
+    "theme": "light",
     "font_size": "medium",
     "streaming_enabled": "true",
     "default_provider_id": "",

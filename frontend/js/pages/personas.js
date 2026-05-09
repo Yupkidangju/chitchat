@@ -109,81 +109,138 @@ async function deletePersona(id) {
 }
 
 /**
- * Vibe Fill 생성 폼을 표시한다.
+ * [v1.1.3] Vibe Fill 생성 폼을 표시한다.
+ * Provider/Model 선택 UI를 포함하여 백엔드 VibeFillRequest 스키마와 일치시킨다.
+ * [v1.1.3 변경사항] provider_profile_id, model_id 필수 필드 누락 수정
  */
-function showVibeFillForm() {
+async function showVibeFillForm() {
 
   const modal = document.getElementById('vibe-fill-modal');
   modal.style.display = 'flex';
-  modal.innerHTML = `
-    <div class="modal-content card" style="max-width: 600px;">
-      <h3 class="card-title">✨ Vibe Fill — 캐릭터 생성</h3>
-      <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
-        캐릭터의 분위기, 느낌, 키워드를 자유롭게 입력하세요.<br>
-        AI가 9섹션의 살아있는 캐릭터를 자동 생성합니다.
-      </p>
-      <form id="vibe-fill-form">
-        <div class="form-group">
-          <label>바이브 텍스트</label>
-          <textarea id="vf-text" class="input" rows="6"
-            placeholder="예: 미대 지망생, 소심하지만 그림에 대해서는 열정적, 카페에서 아르바이트, 약간의 사회불안"
-          ></textarea>
-        </div>
-        <div class="form-group">
-          <label>출력 언어</label>
-          <select id="vf-lang" class="input">
-            <option value="ko">한국어</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-primary" id="vf-submit">
-            🎨 캐릭터 생성
-          </button>
-          <button type="button" class="btn" data-action="closeVibeFillForm">취소</button>
-        </div>
-      </form>
-      <div id="vf-result" style="margin-top: 1.5rem; display: none;"></div>
-    </div>
-  `;
+  modal.innerHTML = '<div class="modal-content card"><p style="color: var(--text-secondary);">로딩 중...</p></div>';
 
-  document.getElementById('vibe-fill-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = document.getElementById('vf-text').value.trim();
-    if (!text) return;
-
-    const submitBtn = document.getElementById('vf-submit');
-    submitBtn.disabled = true;
-    submitBtn.textContent = '⏳ 생성 중...';
-
-    try {
-      const result = await apiPost('/personas/vibe-fill', {
-        vibe_text: text,
-        output_language: document.getElementById('vf-lang').value,
-      });
-
-      const resultEl = document.getElementById('vf-result');
-      resultEl.style.display = 'block';
-      resultEl.innerHTML = `
-        <div class="card" style="background: var(--surface-elevated);">
-          <h4>생성 결과 미리보기</h4>
-          <div class="result-grid">
-            <div><strong>이름:</strong> ${escapeHtml(result.name)}</div>
-            <div><strong>해석:</strong> ${escapeHtml(result.interpretation)}</div>
-            <div><strong>리얼리즘:</strong> ${result.realism_level}</div>
-            <div><strong>핵심 긴장:</strong> ${escapeHtml(result.core_tension)}</div>
-          </div>
-        </div>
-      `;
-      showToast('캐릭터가 생성되었습니다!', 'success');
-      await loadPersonas();
-    } catch (err) {
-      showToast(`생성 실패: ${err.message}`, 'error', 5000);
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = '🎨 캐릭터 생성';
+  try {
+    // Provider 목록 + 프로바이더별 모델 목록 병렬 로드
+    const providers = await apiGet('/providers');
+    const providerModels = {};
+    for (const prov of providers) {
+      try {
+        const models = await apiGet(`/providers/${prov.id}/models`);
+        providerModels[prov.id] = models;
+      } catch { providerModels[prov.id] = []; }
     }
-  });
+
+    // Provider 옵션 생성
+    const providerOptions = providers.map(p =>
+      `<option value="${p.id}">${escapeHtml(p.name)} (${p.provider_kind})</option>`
+    ).join('');
+
+    modal.innerHTML = `
+      <div class="modal-content card" style="max-width: 600px;">
+        <h3 class="card-title">✨ Vibe Fill — 캐릭터 생성</h3>
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+          캐릭터의 분위기, 느낌, 키워드를 자유롭게 입력하세요.<br>
+          AI가 9섹션의 살아있는 캐릭터를 자동 생성합니다.
+        </p>
+        <form id="vibe-fill-form">
+          <div class="form-group">
+            <label>바이브 텍스트</label>
+            <textarea id="vf-text" class="input" rows="6"
+              placeholder="예: 미대 지망생, 소심하지만 그림에 대해서는 열정적, 카페에서 아르바이트, 약간의 사회불안"
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label>출력 언어</label>
+            <select id="vf-lang" class="input">
+              <option value="ko">한국어</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="form-group">
+              <label>Provider</label>
+              <select id="vf-provider" class="input">
+                ${providerOptions}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Model</label>
+              <select id="vf-model" class="input">
+                <option value="">Provider를 선택하세요</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" id="vf-submit">
+              🎨 캐릭터 생성
+            </button>
+            <button type="button" class="btn" data-action="closeVibeFillForm">취소</button>
+          </div>
+        </form>
+        <div id="vf-result" style="margin-top: 1.5rem; display: none;"></div>
+      </div>
+    `;
+
+    // Provider 변경 시 Model 목록 갱신
+    const provSelect = document.getElementById('vf-provider');
+    const modelSelect = document.getElementById('vf-model');
+    const updateModels = () => {
+      const models = providerModels[provSelect.value] || [];
+      modelSelect.innerHTML = models.length === 0
+        ? '<option value="">모델 없음</option>'
+        : models.map(m => `<option value="${m.id}">${escapeHtml(m.name || m.id)}</option>`).join('');
+    };
+    provSelect.addEventListener('change', updateModels);
+    if (providers.length > 0) updateModels();
+
+    // 제출 핸들러
+    document.getElementById('vibe-fill-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = document.getElementById('vf-text').value.trim();
+      if (!text) return;
+      const modelId = modelSelect.value;
+      if (!modelId) { showToast('모델을 선택하세요.', 'warning'); return; }
+
+      const submitBtn = document.getElementById('vf-submit');
+      submitBtn.disabled = true;
+      submitBtn.textContent = '⏳ 생성 중...';
+
+      try {
+        // [v1.1.3] provider_profile_id, model_id 필수 포함
+        const result = await apiPost('/personas/vibe-fill', {
+          vibe_text: text,
+          output_language: document.getElementById('vf-lang').value,
+          provider_profile_id: provSelect.value,
+          model_id: modelId,
+        });
+
+        const resultEl = document.getElementById('vf-result');
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `
+          <div class="card" style="background: var(--surface-elevated);">
+            <h4>생성 결과 미리보기</h4>
+            <div class="result-grid">
+              <div><strong>이름:</strong> ${escapeHtml(result.name)}</div>
+              <div><strong>해석:</strong> ${escapeHtml(result.interpretation)}</div>
+              <div><strong>리얼리즘:</strong> ${result.realism_level}</div>
+              <div><strong>핵심 긴장:</strong> ${escapeHtml(result.core_tension)}</div>
+            </div>
+          </div>
+        `;
+        showToast('캐릭터가 생성되었습니다!', 'success');
+        await loadPersonas();
+      } catch (err) {
+        showToast(`생성 실패: ${err.message}`, 'error', 5000);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '🎨 캐릭터 생성';
+      }
+    });
+
+  } catch (err) {
+    showToast(`로드 실패: ${err.message}`, 'error', 5000);
+    modal.innerHTML = '<div class="modal-content card"><p class="session-empty">데이터를 불러올 수 없습니다</p></div>';
+  }
 }
 
 function closeVibeFillForm() {
