@@ -513,10 +513,10 @@ Inspector 헤더 표시:
 - null이 아닌 값을 가진 숨겨진 미지원 파라미터는 저장 차단 오류를 생성한다.
 - LM Studio의 알 수 없는 토큰 제한은 노란색 경고를 표시하고 고정 기본값을 사용한다.
 
-> **구현 상태 (v0.1.3)**: `model_profile_page.py`에서 MVP 구현 완료.
-> Provider 선택 → 캐시된 모델 선택 → context/max_output/temperature/top_p/top_k/frequency_penalty/presence_penalty 설정 → 저장.
-> **DD-13 적용 (v0.1.3)**: 모델 변경 시 `supported_parameters_json` 조회 → 미지원 파라미터 자동 숨김.
-> capability 정보 불완전 시 경고 표시 + 모든 파라미터 표시. SC-06 해소.
+> **구현 상태 (v1.1.3 웹 SPA)**: `models.js`에서 자유 JSON textarea로 파라미터를 입력한다.
+> 도메인 레벨에서 `ModelCapability.supported_parameters` 집합은 정의되어 있으나 (SC-06a 완료),
+> 프론트엔드에서 미지원 파라미터를 동적으로 숨기는 UI는 v2 로드맵 대상이다 (SC-06b 미구현).
+> PySide6 시절의 `model_profile_page.py` DD-13 구현은 웹 SPA 전환 후 아직 이식되지 않았다.
 
 ### 10.4 사용자 페르소나 페이지
 

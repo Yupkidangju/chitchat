@@ -317,7 +317,8 @@ PyInstaller one-folder 빌드가 성공하고, 빌드된 앱에서 전체 플로
 - [x] `scripts/build.sh` 빌드 스크립트 작성 완료
 - [x] SC-01: Provider 3종 생성 (자동 테스트 통과)
 - [x] SC-02: API Key SQLite 평문 미저장 (자동 테스트 통과)
-- [x] SC-06: 미지원 파라미터 UI 숨김 (자동 테스트 통과)
+- [x] SC-06 (도메인): ModelCapability supported_parameters 집합 검증 (자동 테스트 통과)
+- [ ] SC-06 (UI): 미지원 파라미터 UI 동적 숨김 (v2 로드맵 — 현재 자유 JSON 입력 제공)
 - [x] SC-07: 로어북 최근 8개 매칭 (자동 테스트 통과)
 - [x] SC-08: PromptOrder 변경 시 순서 변경 (자동 테스트 통과)
 - [x] SC-10: 전체 모듈 import + 버전 + 문서 존재 (자동 테스트 통과)
@@ -328,8 +329,9 @@ PyInstaller one-folder 빌드가 성공하고, 빌드된 앱에서 전체 플로
 
 ### 체크포인트 판정
 
-✅ P6 완료 (자동화 가능 항목): PyInstaller spec + 빌드 스크립트 + SC 자동 수용 테스트 6개(SC-01~02, SC-06~08, SC-10) 통과 + 223개 전체 테스트 통과.
+✅ P6 완료 (자동화 가능 항목): PyInstaller spec + 빌드 스크립트 + SC 자동 수용 테스트 5개(SC-01~02, SC-07~08, SC-10) 통과 + 213개 전체 테스트 통과.
 SC-03~05, SC-09(4개)는 실제 API Key 및 Provider 서버가 필요하여 수동 검증 대상.
+SC-06 UI 숨김은 v2 로드맵으로 연기 (도메인 검증만 통과).
 
 ---
 

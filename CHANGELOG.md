@@ -15,6 +15,9 @@
 - **btn.onclick 프로퍼티 할당 제거**: `chat_composer.js` L68의 `btn.onclick = ...` → `btn.addEventListener('click', ...)` 전환 (spec §5.1.2 이벤트 바인딩 강제 규칙 준수)
 - **기본 테마 light 전환**: `user_preferences.py` 기본값을 `dark` → `light`로 변경. designs.md §디자인 금지 사항 "v0.1 BETA에서 다크 기본 테마 금지" 준수
 - **문서 정합성 명확화**: spec.md에 SC-06 capability UI 및 스트리밍 비활성화의 v1.0 구현 범위 주석 추가. audit_roadmap.md P10 검증 정규식 범위를 `frontend/js/**/*.js`로 확장
+- **SC-06 성공 기준 분리**: spec.md SC-06을 SC-06a(도메인 검증, v1 완료) + SC-06b(UI 동적 숨김, v2 연기)로 분리. audit_roadmap P6 체크포인트도 동일 반영. designs.md 구현 상태를 PySide6 → 웹 SPA 기준으로 갱신
+- **Vibe Fill 모델 필드명 수정**: `personas.js` ModelCacheResponse 필드 `m.id`/`m.name` → `m.model_id`/`m.display_name` (undefined 버그 수정)
+- **스트리밍 설정 UI 설명 현실화**: "한 번에 표시됩니다" → "v2에서 지원 예정 (현재 설정 저장만 가능)"
 
 ### 수정됨 (v1.1.2: 6차 감사 Remediation — 인라인 이벤트 완전 제거)
 
